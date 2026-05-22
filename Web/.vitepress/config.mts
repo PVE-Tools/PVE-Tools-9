@@ -199,7 +199,8 @@ export default defineConfig({
       }
     ],
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/PVE-Tools/PVE-Tools-9' }
+      { icon: 'github', link: 'https://github.com/PVE-Tools/PVE-Tools-9' },
+      { icon: 'telegram', link: 'https://t.me/pvetools233' }
     ],
     footer: {
       message: ' Ciriu Networks |',
