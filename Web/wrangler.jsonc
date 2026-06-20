@@ -1,8 +1,0 @@
-{
-  "name": "pve-tools-9-vite-press",
-  "main": "index.js",
-  "compatibility_date": "2026-02-06",
-  "assets": {
-    "directory": "./.vitepress/dist"
-  }
-}

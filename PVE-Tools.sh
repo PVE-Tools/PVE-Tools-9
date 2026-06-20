@@ -16,6 +16,7 @@ CURRENT_VERSION="8.8.8"
 BUILD_NICKNAME="Coluccis"
 VERSION_FILE_URL="https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/VERSION"
 UPDATE_FILE_URL="https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/UPDATE"
+PVE_TOOLS_SCRIPT_URL="https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/PVE-Tools.sh"
 PVE_VERSION_DETECTED=""
 PVE_MAJOR_VERSION=""
 RISK_ACK_BYPASS=false
@@ -57,29 +58,214 @@ setup_colors() {
 # 初始化颜色
 setup_colors
 
-# 镜像源配置
-MIRROR_USTC="https://mirrors.ustc.edu.cn/proxmox/debian/pve"
-MIRROR_TUNA="https://mirrors.tuna.tsinghua.edu.cn/proxmox/debian/pve"
-MIRROR_TENCENT="https://mirrors.cloud.tencent.com/debian"
-MIRROR_ALIYUN="https://mirrors.aliyun.com/debian"
-MIRROR_DEBIAN="https://deb.debian.org/debian"
-SELECTED_MIRROR=""
+# 镜像源注册表（并行数组，索引一一对应）
+# 展示顺序即推荐顺序：官方源 -> 商业云 -> 骨干高校 -> 其他高校/地区源。
+# 新增镜像: 在每个数组末尾追加一个元素即可。
+MIRROR_NAMES=()
+MIRROR_IDS=()
+MIRROR_DEBIAN_URIS=()
+MIRROR_SECURITY_URIS=()
+MIRROR_PVE_URIS=()
+MIRROR_CEPH_URIS=()
+MIRROR_CT_URIS=()
 
-# ceph 模板源配置
-CEPH_MIRROR_USTC="https://mirrors.ustc.edu.cn/proxmox/debian/ceph-squid"
-CEPH_MIRROR_TUNA="https://mirrors.tuna.tsinghua.edu.cn/proxmox/debian/ceph-squid"
-CEPH_MIRROR_ALIYUN="https://mirrors.aliyun.com/ceph/debian-squid"
-CEPH_MIRROR_OFFICIAL="http://download.proxmox.com/debian/ceph-squid"
+MIRROR_NAMES+=("官方源 (Debian/Proxmox)")
+MIRROR_IDS+=("official")
+MIRROR_DEBIAN_URIS+=("https://deb.debian.org/debian")
+MIRROR_SECURITY_URIS+=("https://security.debian.org/debian-security")
+MIRROR_PVE_URIS+=("http://download.proxmox.com/debian/pve")
+MIRROR_CEPH_URIS+=("http://download.proxmox.com/debian/ceph-squid")
+MIRROR_CT_URIS+=("http://download.proxmox.com")
 
-# CT 模板源配置
-CT_MIRROR_USTC="https://mirrors.ustc.edu.cn/proxmox"
-CT_MIRROR_TUNA="https://mirrors.tuna.tsinghua.edu.cn/proxmox"
-CT_MIRROR_OFFICIAL="http://download.proxmox.com"
-PVE_MIRROR_OFFICIAL="http://download.proxmox.com/debian/pve"
+MIRROR_NAMES+=("阿里云 (公网限速/私网不限速)")
+MIRROR_IDS+=("aliyun")
+MIRROR_DEBIAN_URIS+=("https://mirrors.aliyun.com/debian")
+MIRROR_SECURITY_URIS+=("https://mirrors.aliyun.com/debian-security")
+MIRROR_PVE_URIS+=("")
+MIRROR_CEPH_URIS+=("")
+MIRROR_CT_URIS+=("")
 
-# Debian 公网镜像配置
-DEBIAN_SECURITY_MIRROR_TENCENT="https://mirrors.cloud.tencent.com/debian-security"
-DEBIAN_SECURITY_MIRROR_ALIYUN="https://mirrors.aliyun.com/debian-security"
+MIRROR_NAMES+=("腾讯云 (公网限速/VPC不限速)")
+MIRROR_IDS+=("tencent")
+MIRROR_DEBIAN_URIS+=("https://mirrors.cloud.tencent.com/debian")
+MIRROR_SECURITY_URIS+=("https://mirrors.cloud.tencent.com/debian-security")
+MIRROR_PVE_URIS+=("")
+MIRROR_CEPH_URIS+=("")
+MIRROR_CT_URIS+=("")
+
+MIRROR_NAMES+=("华为云 (公网限速/私网不限速)")
+MIRROR_IDS+=("huaweicloud")
+MIRROR_DEBIAN_URIS+=("https://mirrors.huaweicloud.com/debian")
+MIRROR_SECURITY_URIS+=("https://mirrors.huaweicloud.com/debian-security")
+MIRROR_PVE_URIS+=("")
+MIRROR_CEPH_URIS+=("")
+MIRROR_CT_URIS+=("")
+
+MIRROR_NAMES+=("网易 163 (限速单线程)")
+MIRROR_IDS+=("netease163")
+MIRROR_DEBIAN_URIS+=("http://mirrors.163.com/debian")
+MIRROR_SECURITY_URIS+=("http://mirrors.163.com/debian-security")
+MIRROR_PVE_URIS+=("")
+MIRROR_CEPH_URIS+=("")
+MIRROR_CT_URIS+=("")
+
+MIRROR_NAMES+=("清华大学 (TUNA)")
+MIRROR_IDS+=("tuna")
+MIRROR_DEBIAN_URIS+=("https://mirrors.tuna.tsinghua.edu.cn/debian")
+MIRROR_SECURITY_URIS+=("https://mirrors.tuna.tsinghua.edu.cn/debian-security")
+MIRROR_PVE_URIS+=("https://mirrors.tuna.tsinghua.edu.cn/proxmox/debian/pve")
+MIRROR_CEPH_URIS+=("https://mirrors.tuna.tsinghua.edu.cn/proxmox/debian/ceph-squid")
+MIRROR_CT_URIS+=("https://mirrors.tuna.tsinghua.edu.cn/proxmox")
+
+MIRROR_NAMES+=("中科大 (USTC)")
+MIRROR_IDS+=("ustc")
+MIRROR_DEBIAN_URIS+=("https://mirrors.ustc.edu.cn/debian")
+MIRROR_SECURITY_URIS+=("https://mirrors.ustc.edu.cn/debian-security")
+MIRROR_PVE_URIS+=("https://mirrors.ustc.edu.cn/proxmox/debian/pve")
+MIRROR_CEPH_URIS+=("https://mirrors.ustc.edu.cn/proxmox/debian/ceph-squid")
+MIRROR_CT_URIS+=("https://mirrors.ustc.edu.cn/proxmox")
+
+MIRROR_NAMES+=("北京大学 (PKU)")
+MIRROR_IDS+=("pku")
+MIRROR_DEBIAN_URIS+=("https://mirrors.pku.edu.cn/debian")
+MIRROR_SECURITY_URIS+=("https://mirrors.pku.edu.cn/debian-security")
+MIRROR_PVE_URIS+=("")
+MIRROR_CEPH_URIS+=("")
+MIRROR_CT_URIS+=("")
+
+MIRROR_NAMES+=("上海交大致远 (SJTUG-Zhiyuan)")
+MIRROR_IDS+=("sjtug-zhiyuan")
+MIRROR_DEBIAN_URIS+=("https://mirrors.sjtug.sjtu.edu.cn/debian")
+MIRROR_SECURITY_URIS+=("https://mirrors.sjtug.sjtu.edu.cn/debian-security")
+MIRROR_PVE_URIS+=("")
+MIRROR_CEPH_URIS+=("")
+MIRROR_CT_URIS+=("")
+
+MIRROR_NAMES+=("上海交大思源 (SJTUG-Siyuan)")
+MIRROR_IDS+=("sjtug-siyuan")
+MIRROR_DEBIAN_URIS+=("https://mirror.sjtu.edu.cn/debian")
+MIRROR_SECURITY_URIS+=("https://mirror.sjtu.edu.cn/debian-security")
+MIRROR_PVE_URIS+=("")
+MIRROR_CEPH_URIS+=("")
+MIRROR_CT_URIS+=("")
+
+MIRROR_NAMES+=("华中科技大学 (HUST)")
+MIRROR_IDS+=("hust")
+MIRROR_DEBIAN_URIS+=("https://mirrors.hust.edu.cn/debian")
+MIRROR_SECURITY_URIS+=("https://mirrors.hust.edu.cn/debian-security")
+MIRROR_PVE_URIS+=("")
+MIRROR_CEPH_URIS+=("")
+MIRROR_CT_URIS+=("")
+
+MIRROR_NAMES+=("西安交通大学 (XJTU)")
+MIRROR_IDS+=("xjtu")
+MIRROR_DEBIAN_URIS+=("https://mirrors.xjtu.edu.cn/debian")
+MIRROR_SECURITY_URIS+=("https://mirrors.xjtu.edu.cn/debian-security")
+MIRROR_PVE_URIS+=("")
+MIRROR_CEPH_URIS+=("")
+MIRROR_CT_URIS+=("")
+
+MIRROR_NAMES+=("南京大学 (NJUNJU)")
+MIRROR_IDS+=("njunju")
+MIRROR_DEBIAN_URIS+=("https://mirrors.nju.edu.cn/debian")
+MIRROR_SECURITY_URIS+=("https://mirrors.nju.edu.cn/debian-security")
+MIRROR_PVE_URIS+=("https://mirrors.nju.edu.cn/proxmox/debian/pve")
+MIRROR_CEPH_URIS+=("https://mirrors.nju.edu.cn/proxmox/debian/ceph-squid")
+MIRROR_CT_URIS+=("")
+
+MIRROR_NAMES+=("浙江大学 (ZJU)")
+MIRROR_IDS+=("zju")
+MIRROR_DEBIAN_URIS+=("https://mirrors.zju.edu.cn/debian")
+MIRROR_SECURITY_URIS+=("https://mirrors.zju.edu.cn/debian-security")
+MIRROR_PVE_URIS+=("https://mirrors.zju.edu.cn/proxmox/debian/pve")
+MIRROR_CEPH_URIS+=("https://mirrors.zju.edu.cn/proxmox/debian/ceph-squid")
+MIRROR_CT_URIS+=("https://mirrors.zju.edu.cn/proxmox")
+
+MIRROR_NAMES+=("北京外国语大学 (BFSU)")
+MIRROR_IDS+=("bfsu")
+MIRROR_DEBIAN_URIS+=("https://mirrors.bfsu.edu.cn/debian")
+MIRROR_SECURITY_URIS+=("https://mirrors.bfsu.edu.cn/debian-security")
+MIRROR_PVE_URIS+=("https://mirrors.bfsu.edu.cn/proxmox/debian/pve")
+MIRROR_CEPH_URIS+=("https://mirrors.bfsu.edu.cn/proxmox/debian/ceph-squid")
+MIRROR_CT_URIS+=("")
+
+MIRROR_NAMES+=("兰州大学 (LZUOSS)")
+MIRROR_IDS+=("lzuoss")
+MIRROR_DEBIAN_URIS+=("https://mirror.lzu.edu.cn/debian")
+MIRROR_SECURITY_URIS+=("https://mirror.lzu.edu.cn/debian-security")
+MIRROR_PVE_URIS+=("https://mirror.lzu.edu.cn/proxmox/debian/pve")
+MIRROR_CEPH_URIS+=("https://mirror.lzu.edu.cn/proxmox/debian/ceph-squid")
+MIRROR_CT_URIS+=("")
+
+MIRROR_NAMES+=("山东大学 (SDU)")
+MIRROR_IDS+=("sdu")
+MIRROR_DEBIAN_URIS+=("https://mirrors.sdu.edu.cn/debian")
+MIRROR_SECURITY_URIS+=("https://mirrors.sdu.edu.cn/debian-security")
+MIRROR_PVE_URIS+=("https://mirrors.sdu.edu.cn/proxmox/debian/pve")
+MIRROR_CEPH_URIS+=("https://mirrors.sdu.edu.cn/proxmox/debian/ceph-squid")
+MIRROR_CT_URIS+=("https://mirrors.sdu.edu.cn/proxmox")
+
+MIRROR_NAMES+=("南阳理工学院 (NYIST)")
+MIRROR_IDS+=("nyist")
+MIRROR_DEBIAN_URIS+=("https://mirror.nyist.edu.cn/debian")
+MIRROR_SECURITY_URIS+=("https://mirror.nyist.edu.cn/debian-security")
+MIRROR_PVE_URIS+=("https://mirror.nyist.edu.cn/proxmox/debian/pve")
+MIRROR_CEPH_URIS+=("")
+MIRROR_CT_URIS+=("")
+
+MIRROR_NAMES+=("重庆大学 (CQU)")
+MIRROR_IDS+=("cqu")
+MIRROR_DEBIAN_URIS+=("https://mirrors.cqu.edu.cn/debian")
+MIRROR_SECURITY_URIS+=("https://mirrors.cqu.edu.cn/debian-security")
+MIRROR_PVE_URIS+=("https://mirrors.cqu.edu.cn/proxmox/debian/pve")
+MIRROR_CEPH_URIS+=("")
+MIRROR_CT_URIS+=("")
+
+MIRROR_NAMES+=("河南省教育科研网 (HERNET)")
+MIRROR_IDS+=("hernet")
+MIRROR_DEBIAN_URIS+=("https://mirrors.ha.edu.cn/debian")
+MIRROR_SECURITY_URIS+=("https://mirrors.ha.edu.cn/debian-security")
+MIRROR_PVE_URIS+=("https://mirrors.ha.edu.cn/proxmox/debian/pve")
+MIRROR_CEPH_URIS+=("")
+MIRROR_CT_URIS+=("")
+
+MIRROR_NAMES+=("南方科技大学 (SUSTech)")
+MIRROR_IDS+=("sustech")
+MIRROR_DEBIAN_URIS+=("https://mirrors.sustech.edu.cn/debian")
+MIRROR_SECURITY_URIS+=("https://mirrors.sustech.edu.cn/debian-security")
+MIRROR_PVE_URIS+=("")
+MIRROR_CEPH_URIS+=("")
+MIRROR_CT_URIS+=("")
+
+MIRROR_NAMES+=("吉林大学 (JLU)")
+MIRROR_IDS+=("jlu")
+MIRROR_DEBIAN_URIS+=("https://mirrors.jlu.edu.cn/debian")
+MIRROR_SECURITY_URIS+=("https://mirrors.jlu.edu.cn/debian-security")
+MIRROR_PVE_URIS+=("")
+MIRROR_CEPH_URIS+=("")
+MIRROR_CT_URIS+=("")
+
+MIRROR_NAMES+=("南京工业大学 (NJTech)")
+MIRROR_IDS+=("njtech")
+MIRROR_DEBIAN_URIS+=("https://mirrors.njtech.edu.cn/debian")
+MIRROR_SECURITY_URIS+=("https://mirrors.njtech.edu.cn/debian-security")
+MIRROR_PVE_URIS+=("")
+MIRROR_CEPH_URIS+=("")
+MIRROR_CT_URIS+=("")
+
+MIRROR_NAMES+=("西北农林科技大学 (NWAFU)")
+MIRROR_IDS+=("nwafu")
+MIRROR_DEBIAN_URIS+=("https://mirrors.nwafu.edu.cn/debian")
+MIRROR_SECURITY_URIS+=("https://mirrors.nwafu.edu.cn/debian-security")
+MIRROR_PVE_URIS+=("")
+MIRROR_CEPH_URIS+=("")
+MIRROR_CT_URIS+=("")
+
+MIRROR_SELECTED_DEBIAN=-1
+MIRROR_SELECTED_SECURITY=-1
+MIRROR_SELECTED_PVE=-1
+MIRROR_SELECTED_CEPH=-1
+MIRROR_SELECTED_CT=-1
 
 # 自动更新网络检测配置
 CF_TRACE_URL="https://www.cloudflare.com/cdn-cgi/trace"
@@ -98,6 +284,9 @@ FASTPVE_PROJECT_URL="https://github.com/kspeeder/fastpve"
 THIRD_PARTY_MODULES_TREE_API_MAIN_URL="https://api.github.com/repos/PVE-Tools/PVE-Tools-9/git/trees/main?recursive=1"
 THIRD_PARTY_MODULES_TREE_API_MASTER_URL="https://api.github.com/repos/PVE-Tools/PVE-Tools-9/git/trees/master?recursive=1"
 THIRD_PARTY_MODULES_RAW_BASE_URL="https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/Modules"
+COOLERCONTROL_PROJECT_URL="https://gitlab.com/coolercontrol/coolercontrol"
+COOLERCONTROL_DOCS_URL="https://docs.coolercontrol.org/getting-started.html"
+COOLERCONTROL_DEB_SETUP_URL="https://dl.cloudsmith.io/public/coolercontrol/coolercontrol/setup.deb.sh"
 NVIDIA_ASSETS_BASE_URL="https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/Modules/NVIDIA"
 NVIDIA_VGPU_UNLOCK_SO_URL="${NVIDIA_ASSETS_BASE_URL}/libvgpu_unlock_rs.so"
 VM_CONFIG_EXPORT_DIR="/var/lib/pve-tools/vm-config-exports"
@@ -107,11 +296,6 @@ HOST_NETWORK_INTERFACES_FILE="/etc/network/interfaces"
 HOST_NETWORK_INTERFACES_STAGED_FILE="/etc/network/interfaces.new"
 HOST_NETWORK_EXPORT_DIR="/var/lib/pve-tools/network-firewall-exports"
 PVE_CLUSTER_FIREWALL_FILE="/etc/pve/firewall/cluster.fw"
-COPY_FAIL_CVE_ID="CVE-2026-31431"
-COPY_FAIL_DISCLOSURE_DATE="2026-04-29"
-COPY_FAIL_ALGIF_CONF="/etc/modprobe.d/disable-algif.conf"
-COPY_FAIL_AUTHENC_CONF="/etc/modprobe.d/disable-authencesn.conf"
-COPY_FAIL_FIX_COMMITS_REGEX='a664bf3d603d|ce42ee423e58|fafe0fa2995a0|19d43105a97b|3115af9644c3|893d22e0135f|8b88d99341f1|961cfa271a91|CVE-2026-31431|algif_aead - Revert to operating out-of-place'
 
 # 日志函数
 log_info() {
@@ -290,6 +474,70 @@ backup_file() {
 
     log_error "备份失败: $file_path"
     return 1
+}
+
+pve_tools_download_url() {
+    local url="$1"
+    local timeout="${2:-15}"
+
+    if [[ -z "$url" ]]; then
+        return 1
+    fi
+
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL --connect-timeout "$timeout" --max-time "$timeout" "$url" 2>/dev/null
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q -T "$timeout" -O - "$url" 2>/dev/null
+    else
+        return 1
+    fi
+}
+
+pve_tools_download_file() {
+    local url="$1"
+    local output_file="$2"
+    local timeout="${3:-60}"
+
+    if [[ -z "$url" || -z "$output_file" ]]; then
+        return 1
+    fi
+
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL --connect-timeout 15 --max-time "$timeout" -o "$output_file" "$url" 2>/dev/null
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q -T "$timeout" -O "$output_file" "$url" 2>/dev/null
+    else
+        return 1
+    fi
+}
+
+pve_tools_choose_update_urls() {
+    local prefer_mirror=0
+    local version_url="$VERSION_FILE_URL"
+    local update_url="$UPDATE_FILE_URL"
+    local script_url="$PVE_TOOLS_SCRIPT_URL"
+
+    if [[ -n "$USER_COUNTRY_CODE" ]]; then
+        prefer_mirror=$USE_MIRROR_FOR_UPDATE
+    elif detect_network_region >/dev/null 2>&1; then
+        prefer_mirror=$USE_MIRROR_FOR_UPDATE
+    fi
+
+    if [[ "$prefer_mirror" -eq 1 ]]; then
+        version_url="${GITHUB_MIRROR_PREFIX}${VERSION_FILE_URL}"
+        update_url="${GITHUB_MIRROR_PREFIX}${UPDATE_FILE_URL}"
+        script_url="${GITHUB_MIRROR_PREFIX}${PVE_TOOLS_SCRIPT_URL}"
+    fi
+
+    printf '%s|%s|%s|%s\n' "$prefer_mirror" "$version_url" "$update_url" "$script_url"
+}
+
+pve_tools_version_gt() {
+    local newer="$1"
+    local current="$2"
+
+    [[ -n "$newer" && -n "$current" ]] || return 1
+    [[ "$(printf '%s\n' "$newer" "$current" | sort -V | tail -n1)" == "$newer" && "$newer" != "$current" ]]
 }
 # 写入配置块（带标记）
 # 用法: apply_block <file> <marker> <content>
@@ -1490,13 +1738,12 @@ kernel_management_menu() {
         show_menu_option "3" "安装新内核"
         show_menu_option "4" "设置默认启动内核"
         show_menu_option "5" "${RED}清理旧内核${NC}"
-        show_menu_option "6" "Copy Fail 修复复查 / 清理 ${CYAN}(${COPY_FAIL_CVE_ID})${NC}"
-        show_menu_option "7" "${YELLOW}重启系统应用新内核${NC}"
+        show_menu_option "6" "${YELLOW}重启系统应用新内核${NC}"
         echo "${UI_DIVIDER}"
         show_menu_option "0" "返回主菜单"
         show_menu_footer
         
-        read -p "请选择操作 [0-7]: " choice
+        read -p "请选择操作 [0-6]: " choice
         
         case $choice in
             1)
@@ -1528,9 +1775,6 @@ kernel_management_menu() {
                 remove_old_kernels
                 ;;
             6)
-                copy_fail_management_menu
-                ;;
-            7)
                 read -p "确认要重启系统吗？(y/N): " reboot_confirm
                 if [[ "$reboot_confirm" == "y" || "$reboot_confirm" == "Y" ]]; then
                     log_info "系统将在5秒后重启..."
@@ -1618,700 +1862,34 @@ sync_kernel_update() {
     fi
 }
 
-copy_fail_version_ge() {
-    local lhs="$1"
-    local rhs="$2"
-    [[ -n "$lhs" && -n "$rhs" ]] || return 1
-    [[ "$(printf '%s\n' "$lhs" "$rhs" | sort -V | tail -n1)" == "$lhs" ]]
-}
-
-copy_fail_extract_kernel_base_version() {
-    local kernel_release="${1:-$(uname -r 2>/dev/null)}"
-    echo "$kernel_release" | sed -E 's/^[^0-9]*([0-9]+\.[0-9]+\.[0-9]+).*/\1/'
-}
-
-copy_fail_upstream_version_status() {
-    local base_version="$1"
-
-    if [[ -z "$base_version" ]]; then
-        echo "unknown"
-        return 0
-    fi
-
-    if ! copy_fail_version_ge "$base_version" "4.14.0"; then
-        echo "pre-introduced"
-        return 0
-    fi
-
-    case "$base_version" in
-        7.*)
-            echo "fixed"
-            ;;
-        6.19.*)
-            if copy_fail_version_ge "$base_version" "6.19.12"; then
-                echo "fixed"
-            else
-                echo "vulnerable"
-            fi
-            ;;
-        6.18.*)
-            if copy_fail_version_ge "$base_version" "6.18.22"; then
-                echo "fixed"
-            else
-                echo "vulnerable"
-            fi
-            ;;
-        6.2[0-9].*|6.[3-9][0-9].*)
-            echo "fixed"
-            ;;
-        *)
-            echo "vulnerable"
-            ;;
-    esac
-}
-
-copy_fail_find_kernel_config_file() {
-    local kernel_release="${1:-$(uname -r 2>/dev/null)}"
-
-    if [[ -f "/boot/config-$kernel_release" ]]; then
-        echo "/boot/config-$kernel_release"
-        return 0
-    fi
-
-    if [[ -f "/lib/modules/$kernel_release/build/.config" ]]; then
-        echo "/lib/modules/$kernel_release/build/.config"
-        return 0
-    fi
-
-    return 1
-}
-
-copy_fail_get_kernel_config_value() {
-    local config_key="$1"
-    local kernel_release="${2:-$(uname -r 2>/dev/null)}"
-    local config_file=""
-
-    config_file="$(copy_fail_find_kernel_config_file "$kernel_release" 2>/dev/null || true)"
-    if [[ -n "$config_file" ]]; then
-        if grep -q "^${config_key}=y" "$config_file" 2>/dev/null; then
-            echo "y"
-            return 0
-        fi
-        if grep -q "^${config_key}=m" "$config_file" 2>/dev/null; then
-            echo "m"
-            return 0
-        fi
-        if grep -q "^# ${config_key} is not set" "$config_file" 2>/dev/null; then
-            echo "n"
-            return 0
-        fi
-    fi
-
-    if [[ -r /proc/config.gz ]]; then
-        if zgrep -q "^${config_key}=y" /proc/config.gz 2>/dev/null; then
-            echo "y"
-            return 0
-        fi
-        if zgrep -q "^${config_key}=m" /proc/config.gz 2>/dev/null; then
-            echo "m"
-            return 0
-        fi
-        if zgrep -q "^# ${config_key} is not set" /proc/config.gz 2>/dev/null; then
-            echo "n"
-            return 0
-        fi
-    fi
-
-    echo "unknown"
-}
-
-copy_fail_find_running_kernel_package() {
-    local kernel_release="${1:-$(uname -r 2>/dev/null)}"
-    local kernel_pkg=""
-
-    kernel_pkg="$(dpkg-query -S "/boot/vmlinuz-$kernel_release" 2>/dev/null | awk -F: 'NR==1 {print $1; exit}')"
-    if [[ -n "$kernel_pkg" ]]; then
-        echo "$kernel_pkg"
-        return 0
-    fi
-
-    dpkg -l 2>/dev/null | awk -v kernel="$kernel_release" '
-        $1 == "ii" && $2 ~ /^(pve-kernel|proxmox-kernel)-/ && index($2, kernel) {
-            print $2
-            exit
-        }
-    '
-}
-
-copy_fail_file_contains_regex() {
-    local file_path="$1"
-    local regex="$2"
-
-    if [[ ! -f "$file_path" ]]; then
-        return 1
-    fi
-
-    if [[ "$file_path" == *.gz ]]; then
-        zgrep -Eiq "$regex" "$file_path" 2>/dev/null
-        return $?
-    fi
-
-    grep -Eiq "$regex" "$file_path" 2>/dev/null
-}
-
-copy_fail_find_fix_evidence() {
-    local kernel_pkg="$1"
-    local doc_path=""
-
-    if [[ -z "$kernel_pkg" ]]; then
-        return 1
-    fi
-
-    for doc_path in \
-        "/usr/share/doc/$kernel_pkg/changelog.Debian.gz" \
-        "/usr/share/doc/$kernel_pkg/changelog.gz" \
-        "/usr/share/doc/$kernel_pkg/changelog.Debian" \
-        "/usr/share/doc/$kernel_pkg/changelog"; do
-        if copy_fail_file_contains_regex "$doc_path" "$COPY_FAIL_FIX_COMMITS_REGEX"; then
-            echo "$doc_path"
-            return 0
-        fi
-    done
-
-    return 1
-}
-
-copy_fail_module_loaded() {
-    local module_name="$1"
-    lsmod 2>/dev/null | awk -v mod="$module_name" '$1 == mod {found=1; exit} END {exit !found}'
-}
-
-copy_fail_module_policy() {
-    local module_name="$1"
-
-    if [[ -d /etc/modprobe.d ]] && grep -REqs "^[[:space:]]*install[[:space:]]+${module_name}[[:space:]]+/bin/false([[:space:]]*|$)" /etc/modprobe.d 2>/dev/null; then
-        echo "install-false"
-        return 0
-    fi
-
-    if [[ -d /etc/modprobe.d ]] && grep -REqs "^[[:space:]]*blacklist[[:space:]]+${module_name}([[:space:]]*|$)" /etc/modprobe.d 2>/dev/null; then
-        echo "blacklist"
-        return 0
-    fi
-
-    echo "none"
-}
-
-copy_fail_module_mitigation_state() {
-    local config_state="$1"
-    local policy_state="$2"
-    local loaded_state="$3"
-
-    if [[ "$config_state" == "n" ]]; then
-        echo "not-present"
-        return 0
-    fi
-
-    if [[ "$config_state" == "y" ]]; then
-        if [[ "$policy_state" == "install-false" || "$policy_state" == "blacklist" ]]; then
-            echo "builtin-policy-only"
-        else
-            echo "builtin"
-        fi
-        return 0
-    fi
-
-    if [[ "$config_state" == "m" ]]; then
-        if [[ "$policy_state" == "install-false" && "$loaded_state" == "no" ]]; then
-            echo "effective"
-        elif [[ "$policy_state" == "install-false" && "$loaded_state" == "yes" ]]; then
-            echo "pending-unload"
-        elif [[ "$policy_state" == "blacklist" && "$loaded_state" == "no" ]]; then
-            echo "partial"
-        elif [[ "$policy_state" == "blacklist" && "$loaded_state" == "yes" ]]; then
-            echo "loaded-blacklisted"
-        else
-            echo "inactive"
-        fi
-        return 0
-    fi
-
-    echo "unknown"
-}
-
-copy_fail_count_interactive_users() {
-    awk -F: '
-        $3 >= 1000 && $1 != "nobody" && $7 !~ /(false|nologin|sync)$/ {count++}
-        END {print count + 0}
-    ' /etc/passwd 2>/dev/null
-}
-
-copy_fail_count_lxc_containers() {
-    pct list 2>/dev/null | awk 'NR > 1 && $1 ~ /^[0-9]+$/ {count++} END {print count + 0}'
-}
-
-copy_fail_count_running_lxc_containers() {
-    pct list 2>/dev/null | awk 'NR > 1 && $1 ~ /^[0-9]+$/ && $2 == "running" {count++} END {print count + 0}'
-}
-
-copy_fail_ssh_service_state() {
-    if systemctl is-active --quiet ssh.service 2>/dev/null || \
-       systemctl is-active --quiet ssh 2>/dev/null || \
-       systemctl is-active --quiet sshd.service 2>/dev/null; then
-        echo "active"
-    else
-        echo "inactive"
-    fi
-}
-
-copy_fail_describe_policy() {
-    local policy_state="$1"
-
-    case "$policy_state" in
-        install-false) echo "install /bin/false" ;;
-        blacklist) echo "blacklist" ;;
-        none) echo "未发现阻断策略" ;;
-        *) echo "$policy_state" ;;
-    esac
-}
-
-copy_fail_refresh_state() {
-    COPY_FAIL_STATE_KERNEL_RELEASE="$(uname -r 2>/dev/null)"
-    COPY_FAIL_STATE_KERNEL_BASE="$(copy_fail_extract_kernel_base_version "$COPY_FAIL_STATE_KERNEL_RELEASE")"
-    COPY_FAIL_STATE_UPSTREAM_STATUS="$(copy_fail_upstream_version_status "$COPY_FAIL_STATE_KERNEL_BASE")"
-    COPY_FAIL_STATE_KERNEL_PACKAGE="$(copy_fail_find_running_kernel_package "$COPY_FAIL_STATE_KERNEL_RELEASE")"
-    COPY_FAIL_STATE_FIX_EVIDENCE="$(copy_fail_find_fix_evidence "$COPY_FAIL_STATE_KERNEL_PACKAGE" 2>/dev/null || true)"
-    COPY_FAIL_STATE_AEAD_CONFIG="$(copy_fail_get_kernel_config_value CONFIG_CRYPTO_USER_API_AEAD "$COPY_FAIL_STATE_KERNEL_RELEASE")"
-    COPY_FAIL_STATE_AUTHENC_CONFIG="$(copy_fail_get_kernel_config_value CONFIG_CRYPTO_AUTHENCESN "$COPY_FAIL_STATE_KERNEL_RELEASE")"
-
-    if copy_fail_module_loaded algif_aead; then
-        COPY_FAIL_STATE_ALGIF_LOADED="yes"
-    else
-        COPY_FAIL_STATE_ALGIF_LOADED="no"
-    fi
-
-    if copy_fail_module_loaded authencesn; then
-        COPY_FAIL_STATE_AUTHENC_LOADED="yes"
-    else
-        COPY_FAIL_STATE_AUTHENC_LOADED="no"
-    fi
-
-    COPY_FAIL_STATE_ALGIF_POLICY="$(copy_fail_module_policy algif_aead)"
-    COPY_FAIL_STATE_AUTHENC_POLICY="$(copy_fail_module_policy authencesn)"
-    COPY_FAIL_STATE_ALGIF_MITIGATION="$(copy_fail_module_mitigation_state "$COPY_FAIL_STATE_AEAD_CONFIG" "$COPY_FAIL_STATE_ALGIF_POLICY" "$COPY_FAIL_STATE_ALGIF_LOADED")"
-    COPY_FAIL_STATE_AUTHENC_MITIGATION="$(copy_fail_module_mitigation_state "$COPY_FAIL_STATE_AUTHENC_CONFIG" "$COPY_FAIL_STATE_AUTHENC_POLICY" "$COPY_FAIL_STATE_AUTHENC_LOADED")"
-    COPY_FAIL_STATE_INTERACTIVE_USERS="$(copy_fail_count_interactive_users)"
-    COPY_FAIL_STATE_LXC_TOTAL="$(copy_fail_count_lxc_containers)"
-    COPY_FAIL_STATE_LXC_RUNNING="$(copy_fail_count_running_lxc_containers)"
-    COPY_FAIL_STATE_SSH_STATE="$(copy_fail_ssh_service_state)"
-    COPY_FAIL_STATE_STATUS="unknown"
-    COPY_FAIL_STATE_STATUS_REASON=""
-    COPY_FAIL_STATE_RISK_LEVEL="中"
-    COPY_FAIL_STATE_RISK_REASON="信息不足，建议先升级到供应商明确修复的内核。"
-
-    if [[ "$COPY_FAIL_STATE_AEAD_CONFIG" == "n" || "$COPY_FAIL_STATE_AUTHENC_CONFIG" == "n" ]]; then
-        COPY_FAIL_STATE_STATUS="not-affected"
-        COPY_FAIL_STATE_STATUS_REASON="当前内核未启用触发此漏洞所需的 AF_ALG AEAD 或 authencesn 组件。"
-        COPY_FAIL_STATE_RISK_LEVEL="低"
-        COPY_FAIL_STATE_RISK_REASON="关键组件未启用，此漏洞路径通常不可达。"
-        return 0
-    fi
-
-    if [[ -n "$COPY_FAIL_STATE_FIX_EVIDENCE" ]]; then
-        COPY_FAIL_STATE_STATUS="fixed"
-        COPY_FAIL_STATE_STATUS_REASON="在内核包 changelog 中找到了 $COPY_FAIL_CVE_ID / upstream 修复提交的证据。"
-        COPY_FAIL_STATE_RISK_LEVEL="低"
-        COPY_FAIL_STATE_RISK_REASON="当前运行内核大概率已包含修复。"
-        return 0
-    fi
-
-    if [[ "$COPY_FAIL_STATE_UPSTREAM_STATUS" == "fixed" ]]; then
-        COPY_FAIL_STATE_STATUS="fixed"
-        COPY_FAIL_STATE_STATUS_REASON="当前运行内核版本已达到公开的 upstream 修复线。"
-        COPY_FAIL_STATE_RISK_LEVEL="低"
-        COPY_FAIL_STATE_RISK_REASON="版本号已落在公开 fixed 版本及以上。"
-        return 0
-    fi
-
-    if [[ "$COPY_FAIL_STATE_ALGIF_MITIGATION" == "effective" || "$COPY_FAIL_STATE_AUTHENC_MITIGATION" == "effective" ]]; then
-        COPY_FAIL_STATE_STATUS="mitigated"
-        COPY_FAIL_STATE_STATUS_REASON="尚未确认已经打补丁，但至少存在一项模块级临时缓解处于生效状态。"
-        COPY_FAIL_STATE_RISK_LEVEL="中"
-        COPY_FAIL_STATE_RISK_REASON="临时缓解能降低风险，但不等同于官方修复。"
-        return 0
-    fi
-
-    if [[ "$COPY_FAIL_STATE_UPSTREAM_STATUS" == "pre-introduced" ]]; then
-        COPY_FAIL_STATE_STATUS="not-affected"
-        COPY_FAIL_STATE_STATUS_REASON="当前内核版本早于公开的引入版本 4.14。"
-        COPY_FAIL_STATE_RISK_LEVEL="低"
-        COPY_FAIL_STATE_RISK_REASON="版本落在公开引入点之前。"
-        return 0
-    fi
-
-    if [[ "$COPY_FAIL_STATE_UPSTREAM_STATUS" == "vulnerable" ]]; then
-        COPY_FAIL_STATE_STATUS="vulnerable"
-        COPY_FAIL_STATE_STATUS_REASON="版本号仍落在公开 vulnerable 区间，且未发现本地 backport 修复证据。"
-        if (( COPY_FAIL_STATE_LXC_RUNNING > 0 || COPY_FAIL_STATE_INTERACTIVE_USERS > 0 )); then
-            COPY_FAIL_STATE_RISK_LEVEL="高"
-            COPY_FAIL_STATE_RISK_REASON="存在本地交互用户或正在运行的 LXC，满足典型本地提权 / 容器逃逸前置条件。"
-        elif [[ "$COPY_FAIL_STATE_SSH_STATE" == "active" || "$COPY_FAIL_STATE_LXC_TOTAL" -gt 0 ]]; then
-            COPY_FAIL_STATE_RISK_LEVEL="高"
-            COPY_FAIL_STATE_RISK_REASON="当前主机暴露 SSH 或承载 LXC，建议立即缓解并跟进供应商内核修复。"
-        else
-            COPY_FAIL_STATE_RISK_LEVEL="中"
-            COPY_FAIL_STATE_RISK_REASON="当前看不到明显本地入口，但一旦攻击者取得普通账号或容器 foothold，风险会迅速升级。"
-        fi
-        return 0
-    fi
-}
-
-copy_fail_show_status_report() {
-    copy_fail_refresh_state
-
-    clear
-    show_menu_header "Copy Fail 检测结果"
-    echo -e "${CYAN}漏洞:${NC} ${COPY_FAIL_CVE_ID} / Copy Fail"
-    echo -e "${CYAN}公开日期:${NC} ${COPY_FAIL_DISCLOSURE_DATE}"
-    echo -e "${CYAN}当前内核:${NC} ${GREEN}${COPY_FAIL_STATE_KERNEL_RELEASE:-unknown}${NC}"
-    echo -e "${CYAN}解析版本:${NC} ${GREEN}${COPY_FAIL_STATE_KERNEL_BASE:-unknown}${NC}"
-    echo -e "${CYAN}内核包:${NC} ${GREEN}${COPY_FAIL_STATE_KERNEL_PACKAGE:-unknown}${NC}"
-    echo -e "${CYAN}upstream 判断:${NC} ${GREEN}${COPY_FAIL_STATE_UPSTREAM_STATUS}${NC}"
-    if [[ -n "$COPY_FAIL_STATE_FIX_EVIDENCE" ]]; then
-        echo -e "${CYAN}修复证据:${NC} ${GREEN}${COPY_FAIL_STATE_FIX_EVIDENCE}${NC}"
-    else
-        echo -e "${CYAN}修复证据:${NC} ${YELLOW}未在本地 changelog 中发现明确 backport 标记${NC}"
-    fi
-    echo -e "${CYAN}CONFIG_CRYPTO_USER_API_AEAD:${NC} ${GREEN}${COPY_FAIL_STATE_AEAD_CONFIG}${NC}"
-    echo -e "${CYAN}CONFIG_CRYPTO_AUTHENCESN:${NC} ${GREEN}${COPY_FAIL_STATE_AUTHENC_CONFIG}${NC}"
-    echo -e "${CYAN}algif_aead:${NC} 策略=${GREEN}$(copy_fail_describe_policy "$COPY_FAIL_STATE_ALGIF_POLICY")${NC} / 已加载=${GREEN}${COPY_FAIL_STATE_ALGIF_LOADED}${NC} / 缓解状态=${GREEN}${COPY_FAIL_STATE_ALGIF_MITIGATION}${NC}"
-    echo -e "${CYAN}authencesn:${NC} 策略=${GREEN}$(copy_fail_describe_policy "$COPY_FAIL_STATE_AUTHENC_POLICY")${NC} / 已加载=${GREEN}${COPY_FAIL_STATE_AUTHENC_LOADED}${NC} / 缓解状态=${GREEN}${COPY_FAIL_STATE_AUTHENC_MITIGATION}${NC}"
-    echo -e "${CYAN}交互用户数:${NC} ${GREEN}${COPY_FAIL_STATE_INTERACTIVE_USERS}${NC}"
-    echo -e "${CYAN}LXC 总数/运行中:${NC} ${GREEN}${COPY_FAIL_STATE_LXC_TOTAL}/${COPY_FAIL_STATE_LXC_RUNNING}${NC}"
-    echo -e "${CYAN}SSH 服务:${NC} ${GREEN}${COPY_FAIL_STATE_SSH_STATE}${NC}"
-    echo "${UI_DIVIDER}"
-
-    case "$COPY_FAIL_STATE_STATUS" in
-        fixed)
-            echo -e "${GREEN}结论: 当前系统大概率已修复 ${COPY_FAIL_CVE_ID}${NC}"
-            ;;
-        mitigated)
-            echo -e "${YELLOW}结论: 当前系统尚未确认已修复，但已进入临时缓解状态${NC}"
-            ;;
-        vulnerable)
-            echo -e "${RED}结论: 当前系统仍有较高概率受 ${COPY_FAIL_CVE_ID} 影响${NC}"
-            ;;
-        not-affected)
-            echo -e "${GREEN}结论: 当前系统通常不暴露该漏洞路径${NC}"
-            ;;
-        *)
-            echo -e "${YELLOW}结论: 当前系统状态无法完全确认，请按高标准处理${NC}"
-            ;;
-    esac
-
-    echo -e "${CYAN}判断依据:${NC} ${COPY_FAIL_STATE_STATUS_REASON}"
-    echo -e "${CYAN}受攻击危险:${NC} ${COPY_FAIL_STATE_RISK_LEVEL}"
-    echo -e "${CYAN}风险说明:${NC} ${COPY_FAIL_STATE_RISK_REASON}"
-    echo
-
-    if [[ "$COPY_FAIL_STATE_STATUS" == "vulnerable" || "$COPY_FAIL_STATE_STATUS" == "unknown" ]]; then
-        echo -e "${YELLOW}建议:${NC} 先升级到供应商明确声明已包含 ${COPY_FAIL_CVE_ID} 修复的内核，再重启并复查；如果之前写入过临时阻断配置，升级后请及时清理。"
-    elif [[ "$COPY_FAIL_STATE_STATUS" == "mitigated" ]]; then
-        echo -e "${YELLOW}建议:${NC} 继续保留临时阻断，直到切换到已修复内核；完成升级后记得清理残留配置。"
-    else
-        echo -e "${YELLOW}建议:${NC} 仍建议保留一次检测记录，后续内核变更后再复查。"
-    fi
-}
-
-copy_fail_show_manual_guidance() {
-    copy_fail_refresh_state
-
-    clear
-    show_menu_header "Copy Fail 手动复查与清理"
-    echo -e "${CYAN}优先级 1:${NC} 安装供应商明确声明已修复 ${COPY_FAIL_CVE_ID} 的内核包，并重启到该内核。"
-    echo -e "${CYAN}优先级 2:${NC} 如果历史上写入过临时阻断策略，升级完成后先清理再复查。"
-    echo
-    echo -e "${CYAN}修复后清理${NC}"
-    echo '  1. rm -f /etc/modprobe.d/disable-algif.conf /etc/modprobe.d/disable-authencesn.conf'
-    echo '  2. modprobe algif_aead 2>/dev/null || true'
-    echo '  3. modprobe authencesn 2>/dev/null || true'
-    echo '  4. 重启后再次执行“检测漏洞 / 判断是否已修复”'
-    echo
-    echo -e "${CYAN}若暂时还不能升级，可临时阻断${NC}"
-    echo -e "${CYAN}手动方式 A - 临时阻断 algif_aead（copy.fail 官方建议）${NC}"
-    echo '  1. echo "install algif_aead /bin/false" > /etc/modprobe.d/disable-algif.conf'
-    echo '  2. echo "blacklist algif_aead" >> /etc/modprobe.d/disable-algif.conf'
-    echo '  3. rmmod algif_aead 2>/dev/null || true'
-    echo '  4. 升级后重新检测并清理'
-    echo
-    echo -e "${CYAN}手动方式 B - 临时阻断 authencesn（Gentoo 临时 workaround 思路）${NC}"
-    echo '  1. echo "install authencesn /bin/false" > /etc/modprobe.d/disable-authencesn.conf'
-    echo '  2. echo "blacklist authencesn" >> /etc/modprobe.d/disable-authencesn.conf'
-    echo '  3. rmmod authencesn 2>/dev/null || true'
-    echo '  4. 验证 IPSec / 依赖该算法的业务是否正常'
-    echo
-    echo -e "${CYAN}重要提醒:${NC}"
-    echo "  - 如果 CONFIG_CRYPTO_USER_API_AEAD=y，algif_aead 为内建，阻断策略不会改变当前运行内核的编译方式。"
-    echo "  - 临时阻断可能影响 bluez、cryptsetup、iwd、stress-ng、libkcapi 及部分依赖 AEAD 的程序。"
-    echo "  - 临时阻断 authencesn 可能让部分 IPSec 场景退化为更慢路径。"
-    echo "  - 本脚本的“自动同步最新内核”只负责拉取仓库最新可见内核，更新后仍需重新检测是否已包含 ${COPY_FAIL_CVE_ID} 修复。"
-    echo
-
-    if [[ "$COPY_FAIL_STATE_STATUS" == "fixed" ]]; then
-        echo -e "${GREEN}当前系统已检测到修复迹象，建议优先清理历史临时阻断配置。${NC}"
-    elif [[ "$COPY_FAIL_STATE_STATUS" == "mitigated" ]]; then
-        echo -e "${YELLOW}当前系统仍处于临时阻断状态，建议尽快切换到正式修复内核后再清理。${NC}"
-    else
-        echo -e "${RED}当前系统未确认修复，若暂时不能升级，可先使用临时阻断方案。${NC}"
-    fi
-}
-
-copy_fail_write_module_block_conf() {
-    local conf_path="$1"
-    local module_name="$2"
-    local title="$3"
-
-    mkdir -p /etc/modprobe.d || {
-        log_error "无法创建 /etc/modprobe.d 目录"
-        return 1
-    }
-
-    backup_file "$conf_path" >/dev/null 2>&1 || true
-
-    cat > "$conf_path" <<EOF
-# $title
-# Generated by PVE-Tools for ${COPY_FAIL_CVE_ID}
-install $module_name /bin/false
-blacklist $module_name
-EOF
-}
-
-copy_fail_apply_algif_mitigation() {
-    copy_fail_refresh_state
-    echo -e "${YELLOW}将写入 ${COPY_FAIL_ALGIF_CONF} 并尝试卸载 algif_aead 模块。${NC}"
-    echo -e "${YELLOW}若当前内核将 CONFIG_CRYPTO_USER_API_AEAD 编译为内建(y)，此方法只能写阻断策略，不能彻底阻断当前运行内核。${NC}"
-    if ! confirm_action "应用 Copy Fail 临时阻断（禁用 algif_aead）？"; then
-        return 0
-    fi
-
-    if ! copy_fail_write_module_block_conf "$COPY_FAIL_ALGIF_CONF" "algif_aead" "Temporary mitigation for Copy Fail"; then
-        log_error "写入 ${COPY_FAIL_ALGIF_CONF} 失败"
-        return 1
-    fi
-
-    if [[ "$COPY_FAIL_STATE_AEAD_CONFIG" == "m" ]]; then
-        if modprobe -r algif_aead >/dev/null 2>&1; then
-            log_success "algif_aead 已卸载，临时阻断已立即生效"
-        else
-            log_warn "algif_aead 卸载失败，可能正在被占用；建议尽快重启宿主机"
-        fi
-    elif [[ "$COPY_FAIL_STATE_AEAD_CONFIG" == "y" ]]; then
-        log_warn "CONFIG_CRYPTO_USER_API_AEAD=y，algif_aead 为内建；策略已写入，但当前会话通常仍需更换内核才能彻底清除风险"
-    else
-        log_warn "未能确认 algif_aead 的内核配置状态，请在重启后重新检测"
-    fi
-
-    log_success "algif_aead 临时阻断策略已写入: ${COPY_FAIL_ALGIF_CONF}"
-}
-
-copy_fail_apply_authencesn_mitigation() {
-    copy_fail_refresh_state
-    echo -e "${YELLOW}将写入 ${COPY_FAIL_AUTHENC_CONF} 并尝试卸载 authencesn 模块。${NC}"
-    echo -e "${YELLOW}该方式参考发行版临时 workaround，可能影响部分 IPSec / AEAD 相关路径。${NC}"
-    if ! confirm_action "应用 Copy Fail 临时阻断（禁用 authencesn）？"; then
-        return 0
-    fi
-
-    if ! copy_fail_write_module_block_conf "$COPY_FAIL_AUTHENC_CONF" "authencesn" "Temporary workaround for Copy Fail"; then
-        log_error "写入 ${COPY_FAIL_AUTHENC_CONF} 失败"
-        return 1
-    fi
-
-    if [[ "$COPY_FAIL_STATE_AUTHENC_CONFIG" == "m" ]]; then
-        if modprobe -r authencesn >/dev/null 2>&1; then
-            log_success "authencesn 已卸载，临时阻断已立即生效"
-        else
-            log_warn "authencesn 卸载失败，可能正在被占用；建议验证业务后安排重启"
-        fi
-    elif [[ "$COPY_FAIL_STATE_AUTHENC_CONFIG" == "y" ]]; then
-        log_warn "CONFIG_CRYPTO_AUTHENCESN=y，authencesn 为内建；当前方法主要用于落地持久策略，不能保证立即见效"
-    else
-        log_warn "未能确认 authencesn 的内核配置状态，请在重启后重新检测"
-    fi
-
-    log_success "authencesn 临时阻断策略已写入: ${COPY_FAIL_AUTHENC_CONF}"
-}
-
-copy_fail_remove_mitigations() {
-    local changed=0
-
-    echo -e "${YELLOW}将删除 Copy Fail 相关临时阻断配置，并尝试重新加载模块。${NC}"
-    if ! confirm_action "清理 Copy Fail 临时阻断并恢复模块？"; then
-        return 0
-    fi
-
-    if [[ -f "$COPY_FAIL_ALGIF_CONF" ]]; then
-        backup_file "$COPY_FAIL_ALGIF_CONF" >/dev/null 2>&1 || true
-        rm -f "$COPY_FAIL_ALGIF_CONF"
-        changed=1
-    fi
-
-    if [[ -f "$COPY_FAIL_AUTHENC_CONF" ]]; then
-        backup_file "$COPY_FAIL_AUTHENC_CONF" >/dev/null 2>&1 || true
-        rm -f "$COPY_FAIL_AUTHENC_CONF"
-        changed=1
-    fi
-
-    if [[ "$changed" -eq 0 ]]; then
-        log_info "未发现本脚本创建的 Copy Fail 临时阻断配置"
-        return 0
-    fi
-
-    modprobe algif_aead >/dev/null 2>&1 || true
-    modprobe authencesn >/dev/null 2>&1 || true
-    log_success "已删除 Copy Fail 临时阻断配置；若模块未恢复，请重启后再检查"
-}
-
-copy_fail_upgrade_kernel_guidance() {
-    echo -e "${YELLOW}将调用现有“同步更新内核”流程。更新完成后请再次检测 Copy Fail 状态。${NC}"
-    echo -e "${YELLOW}只有当仓库中最新可见内核已经包含 ${COPY_FAIL_CVE_ID} 修复时，这一步才算真正清除漏洞。${NC}"
-    if ! confirm_action "继续尝试更新到仓库最新内核并复查？"; then
-        return 0
-    fi
-    sync_kernel_update
-}
-
-copy_fail_management_menu() {
-    while true; do
-        clear
-        show_menu_header "Copy Fail 修复复查与清理"
-        echo -e "${RED}${COPY_FAIL_CVE_ID}${NC} / Copy Fail  (公开: ${COPY_FAIL_DISCLOSURE_DATE})"
-        echo -e "${YELLOW}当前优先事项: 先确认是否已进入修复内核，再清理历史临时阻断配置。${NC}"
-        echo -e "${UI_DIVIDER}"
-        show_menu_option "1" "检测漏洞 / 判断是否已修复 / 评估受攻击风险"
-        show_menu_option "2" "查看手动复查与清理建议"
-        show_menu_option "3" "自动处理 A：临时阻断 algif_aead ${CYAN}(未修复时使用)${NC}"
-        show_menu_option "4" "自动处理 B：临时阻断 authencesn ${CYAN}(未修复时使用)${NC}"
-        show_menu_option "5" "清理临时阻断配置"
-        show_menu_option "6" "同步仓库最新内核并复查"
-        show_menu_option "0" "返回上级菜单"
-        show_menu_footer
-
-        read -p "请选择操作 [0-6]: " copy_fail_choice
-        case "$copy_fail_choice" in
-            1) copy_fail_show_status_report ;;
-            2) copy_fail_show_manual_guidance ;;
-            3) copy_fail_apply_algif_mitigation ;;
-            4) copy_fail_apply_authencesn_mitigation ;;
-            5) copy_fail_remove_mitigations ;;
-            6) copy_fail_upgrade_kernel_guidance ;;
-            0) return ;;
-            *) log_error "无效选择，请重新输入" ;;
-        esac
-        pause_function
-    done
-}
-
 # 备份函数统一定义于顶部配置文件安全管理区域，避免后续重复覆盖。
 # 换源功能
 change_sources() {
     block_non_pve9_destructive "更换软件源" || return 1
     log_step "开始为您的 PVE 换上飞速源"
-    
-    # 根据选择的镜像源确定URL
-    local debian_mirror=""
-    local debian_security_mirror=""
-    local pve_mirror=""
-    local ct_mirror=""
 
-    case $SELECTED_MIRROR in
-        $MIRROR_USTC)
-            debian_mirror="https://mirrors.ustc.edu.cn/debian"
-            debian_security_mirror="https://mirrors.ustc.edu.cn/debian-security"
-            pve_mirror="$MIRROR_USTC"
-            ceph_mirror="$CEPH_MIRROR_USTC"
-            ct_mirror="$CT_MIRROR_USTC"
-            ;;
-        $MIRROR_TUNA)
-            debian_mirror="https://mirrors.tuna.tsinghua.edu.cn/debian"
-            debian_security_mirror="https://mirrors.tuna.tsinghua.edu.cn/debian-security"
-            pve_mirror="$MIRROR_TUNA"
-            ceph_mirror="$CEPH_MIRROR_TUNA"
-            ct_mirror="$CT_MIRROR_TUNA"
-            ;;
-        $MIRROR_TENCENT)
-            debian_mirror="$MIRROR_TENCENT"
-            debian_security_mirror="$DEBIAN_SECURITY_MIRROR_TENCENT"
-            pve_mirror="$PVE_MIRROR_OFFICIAL"
-            ceph_mirror="$CEPH_MIRROR_OFFICIAL"
-            ct_mirror="$CT_MIRROR_OFFICIAL"
-            ;;
-        $MIRROR_ALIYUN)
-            debian_mirror="$MIRROR_ALIYUN"
-            debian_security_mirror="$DEBIAN_SECURITY_MIRROR_ALIYUN"
-            pve_mirror="$PVE_MIRROR_OFFICIAL"
-            ceph_mirror="$CEPH_MIRROR_OFFICIAL"
-            ct_mirror="$CT_MIRROR_OFFICIAL"
-            ;;
-        $MIRROR_DEBIAN)
-            debian_mirror="$MIRROR_DEBIAN"
-            debian_security_mirror="https://security.debian.org/debian-security"
-            pve_mirror="$PVE_MIRROR_OFFICIAL"
-            ceph_mirror="$CEPH_MIRROR_OFFICIAL"
-            ct_mirror="$CT_MIRROR_OFFICIAL"
-            ;;
-    esac
-
-    case $SELECTED_MIRROR in
-        $MIRROR_TENCENT)
-            log_info "腾讯云公网源当前仅用于 Debian / 安全更新，PVE / CT / Ceph 继续沿用官方源（腾讯云暂无对应镜像）"
-            ;;
-        $MIRROR_ALIYUN)
-            log_info "阿里云公网源已用于 Debian / 安全更新，PVE / Ceph / CT 继续沿用官方源（阿里云暂无对应镜像）"
-            ;;
-    esac
-
-    if [[ -z "$debian_mirror" || -z "$debian_security_mirror" || -z "$pve_mirror" || -z "$ceph_mirror" || -z "$ct_mirror" ]]; then
-        log_error "未能解析所选镜像源，请重新选择后再试"
-        return 1
+    if ! mirror_selection_complete; then
+        select_mirror || return 1
     fi
-    
-    # 询问用户是否要更换安全更新源
-    log_info "安全更新源选择"
-    echo "═════════════════════════════════════════════════"
-    echo "  安全更新源包含重要的系统安全补丁，选择合适的源很重要："
-    echo "  1) 使用官方安全源 (推荐，更新最及时，但可能较慢)"
-    echo "  2) 使用镜像站安全源 (速度快，但可能有延迟)"
-    echo "═════════════════════════════════════════════════"
-    
-    read -p "  请选择 [1-2] (默认: 1): " security_choice
-    security_choice=${security_choice:-1}
-    
-    if [[ "$security_choice" == "2" ]]; then
-        # 使用镜像站的安全源
-        case $SELECTED_MIRROR in
-            $MIRROR_USTC)
-                debian_security_mirror="https://mirrors.ustc.edu.cn/debian-security"
-                ;;
-            $MIRROR_TUNA)
-                debian_security_mirror="https://mirrors.tuna.tsinghua.edu.cn/debian-security"
-                ;;
-            $MIRROR_TENCENT)
-                debian_security_mirror="$DEBIAN_SECURITY_MIRROR_TENCENT"
-                ;;
-            $MIRROR_ALIYUN)
-                debian_security_mirror="$DEBIAN_SECURITY_MIRROR_ALIYUN"
-                ;;
-            $MIRROR_DEBIAN)
-                debian_security_mirror="https://security.debian.org/debian-security"
-                ;;
-        esac
-        log_info "将使用镜像站的安全更新源"
-    else
-        # 使用官方安全源
-        debian_security_mirror="https://security.debian.org/debian-security"
-        log_info "将使用官方安全更新源"
-    fi
+
+    local debian_mirror="${MIRROR_DEBIAN_URIS[$MIRROR_SELECTED_DEBIAN]}"
+    local debian_security_mirror="${MIRROR_SECURITY_URIS[$MIRROR_SELECTED_SECURITY]}"
+    local pve_mirror="${MIRROR_PVE_URIS[$MIRROR_SELECTED_PVE]}"
+    local ceph_mirror="${MIRROR_CEPH_URIS[$MIRROR_SELECTED_CEPH]}"
+    local ct_mirror="${MIRROR_CT_URIS[$MIRROR_SELECTED_CT]}"
+
+    [[ -z "$debian_mirror" ]] && debian_mirror="https://deb.debian.org/debian"
+    [[ -z "$debian_security_mirror" ]] && debian_security_mirror="https://security.debian.org/debian-security"
+    [[ -z "$pve_mirror" ]] && pve_mirror="http://download.proxmox.com/debian/pve"
+    [[ -z "$ceph_mirror" ]] && ceph_mirror="http://download.proxmox.com/debian/ceph-squid"
+    [[ -z "$ct_mirror" ]] && ct_mirror="http://download.proxmox.com"
+
+    log_info "镜像源配置:"
+    log_info "  Debian:    $debian_mirror"
+    log_info "  Security:  $debian_security_mirror"
+    log_info "  PVE:       $pve_mirror"
+    log_info "  Ceph:      $ceph_mirror"
+    log_info "  CT 模板:   $ct_mirror"
     
     # 1. 更换 Debian 软件源 (DEB822 格式)
     log_info "正在配置 Debian 镜像源..."
@@ -2383,10 +1961,11 @@ EOF
     log_info "正在加速 CT 模板下载..."
     if [[ -f "/usr/share/perl5/PVE/APLInfo.pm" ]]; then
         backup_file "/usr/share/perl5/PVE/APLInfo.pm"
-        # 先恢复为官方源,确保可以二次替换
-        sed -i "s|https://mirrors.ustc.edu.cn/proxmox|http://download.proxmox.com|g" /usr/share/perl5/PVE/APLInfo.pm
-        sed -i "s|https://mirrors.tuna.tsinghua.edu.cn/proxmox|http://download.proxmox.com|g" /usr/share/perl5/PVE/APLInfo.pm
-        # 然后替换为选定的镜像源
+        local known_ct_uri
+        for known_ct_uri in "${MIRROR_CT_URIS[@]}"; do
+            [[ -n "$known_ct_uri" && "$known_ct_uri" != "http://download.proxmox.com" ]] || continue
+            sed -i "s|$known_ct_uri|http://download.proxmox.com|g" /usr/share/perl5/PVE/APLInfo.pm
+        done
         sed -i "s|http://download.proxmox.com|$ct_mirror|g" /usr/share/perl5/PVE/APLInfo.pm
     fi
     
@@ -5928,28 +5507,294 @@ third_party_market_menu() {
 }
 #---------FastPVE 虚拟机快速下载-----------
 
-# 社区第三方工具集合提示
-third_party_tools_menu() {
+# Community Scripts 提示
+third_party_community_scripts_info() {
     clear
-    show_menu_header "第三方工具集 (Community Scripts)"
+    show_menu_header "Community Scripts"
 
     echo "  这里推荐一个由社区维护的庞大脚本集合，覆盖 Proxmox 安装、容器/虚拟机模版、监控等各种高级玩法。"
     echo
     echo "  项目主页: https://community-scripts.github.io/ProxmoxVE/"
     echo "  GitHub 仓库: https://github.com/community-scripts/ProxmoxVE"
     echo
-    echo -e "${RED}⚠️  重要提示:${NC} 该工具集完全由第三方维护，与 PVE-Tools 项目无关。"
-    echo -e "${YELLOW}    如果脚本运行出现问题，请直接前往上述项目反馈，不要来找我喔~${NC}"
+    echo -e "${RED}重要提示:${NC} 该工具集完全由第三方维护，与 PVE-Tools 项目无关。"
+    echo "  如果脚本运行出现问题，请直接前往上述项目反馈。"
     echo
     echo "  使用建议："
-    echo "    • 全站为英文界面，可配合浏览器或翻译软件使用，中文用户建议提前准备。"
-    echo "    • 网站中包含大量脚本和功能说明，建议按需阅读说明后再执行。"
-    echo "    • 执行任何第三方脚本前，请务必备份关键配置并了解潜在风险。"
+    echo "    - 全站为英文界面，可配合浏览器或翻译软件使用。"
+    echo "    - 网站中包含大量脚本和功能说明，建议按需阅读说明后再执行。"
+    echo "    - 执行任何第三方脚本前，请务必备份关键配置并了解潜在风险。"
     echo "${UI_DIVIDER}"
-    read -p "按任意键返回主菜单..." -n 1 _
-    echo
 }
-#---------社区第三方工具集合-----------
+#---------第三方工具集合-----------
+
+coolercontrol_local_url() {
+    local first_ip
+    first_ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+    if [[ -n "$first_ip" ]]; then
+        echo "http://${first_ip}:11987"
+    else
+        echo "http://<PVE-IP>:11987"
+    fi
+}
+
+coolercontrol_print_manual_install() {
+    clear
+    show_menu_header "CoolerControl 手动安装命令"
+    echo "  官方项目: $COOLERCONTROL_PROJECT_URL"
+    echo "  官方文档: $COOLERCONTROL_DOCS_URL"
+    echo
+    echo "  # 1. 下载并运行 Cloudsmith 官方 Debian 源配置脚本"
+    echo "  wget -O /tmp/coolercontrol-setup.deb.sh \"$COOLERCONTROL_DEB_SETUP_URL\""
+    echo "  bash /tmp/coolercontrol-setup.deb.sh"
+    echo
+    echo "  # 2. 安装守护进程并启动内置 Web UI"
+    echo "  apt-get update"
+    echo "  apt-get install -y coolercontrold"
+    echo "  systemctl enable --now coolercontrold"
+    echo
+    echo "  # 可选：桌面 UI 和更广硬件支持"
+    echo "  apt-get install -y coolercontrol lm-sensors liquidctl"
+    echo
+    echo "  Web UI: $(coolercontrol_local_url)"
+}
+
+coolercontrol_detect_status() {
+    local service_state="未安装/未找到进程信息"
+
+    if command -v dpkg-query >/dev/null 2>&1 && dpkg-query -W coolercontrold >/dev/null 2>&1; then
+        service_state="已安装/未找到进程信息"
+        if command -v systemctl >/dev/null 2>&1; then
+            service_state="$(systemctl is-active coolercontrold 2>/dev/null || echo inactive)"
+            case "$service_state" in
+                active) service_state="已安装/运行中" ;;
+                inactive) service_state="已安装/未运行" ;;
+                failed) service_state="已安装/服务异常" ;;
+                *) service_state="已安装/${service_state}" ;;
+            esac
+        fi
+    elif pgrep -x coolercontrold >/dev/null 2>&1; then
+        service_state="已安装/运行中"
+    fi
+
+    echo "$service_state"
+}
+
+coolercontrol_detect_version() {
+    local daemon_version desktop_version
+
+    if command -v dpkg-query >/dev/null 2>&1; then
+        daemon_version="$(dpkg-query -W -f='${Version}' coolercontrold 2>/dev/null || true)"
+        desktop_version="$(dpkg-query -W -f='${Version}' coolercontrol 2>/dev/null || true)"
+    fi
+
+    if [[ -n "$daemon_version" && -n "$desktop_version" && "$daemon_version" != "$desktop_version" ]]; then
+        echo "coolercontrold ${daemon_version} / coolercontrol ${desktop_version}"
+    elif [[ -n "$daemon_version" ]]; then
+        echo "$daemon_version"
+    elif [[ -n "$desktop_version" ]]; then
+        echo "$desktop_version"
+    else
+        echo "未安装/未找到进程信息"
+    fi
+}
+
+coolercontrol_install() {
+    block_non_pve9_destructive "安装 CoolerControl 第三方风扇控制工具" || return 1
+
+    local install_desktop install_optional tmp_script install_pkgs=()
+    if ! command -v apt-get >/dev/null 2>&1 || ! command -v systemctl >/dev/null 2>&1; then
+        display_error "缺少 apt-get 或 systemctl" "请在 Debian/PVE 宿主机环境中运行。"
+        return 1
+    fi
+
+    clear
+    show_menu_header "安装 CoolerControl"
+    echo -e "${CYAN}项目:${NC} $COOLERCONTROL_PROJECT_URL"
+    echo -e "${CYAN}文档:${NC} $COOLERCONTROL_DOCS_URL"
+    echo -e "${CYAN}源配置脚本:${NC} $COOLERCONTROL_DEB_SETUP_URL"
+    echo "$UI_DIVIDER"
+    echo "  将安装官方 Debian 包 coolercontrold。"
+    echo "  coolercontrold 是系统守护进程，包含内置 Web UI。"
+    echo "  PVE-Tools 不接管风扇曲线、不写入 CoolerControl 配置。"
+    echo "$UI_DIVIDER"
+
+    read -p "是否安装桌面 UI coolercontrol？PVE 宿主机通常不需要 [no]: " install_desktop
+    install_desktop="${install_desktop:-no}"
+    read -p "是否安装可选硬件支持包 lm-sensors/liquidctl？[yes]: " install_optional
+    install_optional="${install_optional:-yes}"
+
+    if ! confirm_high_risk_action "安装 CoolerControl 并添加第三方 APT 源" "会下载并运行 CoolerControl 官方 Cloudsmith 源配置脚本，并安装第三方软件包。" "第三方仓库或包异常可能影响 apt 源状态；风扇控制配置错误可能造成散热或噪音问题。" "建议先确认硬件支持情况，并保留 PVE 控制台访问；安装后先观察温度与风扇状态，再配置自动曲线。" "COOLER"; then
+        return 0
+    fi
+
+    if ! tmp_script=$(mktemp /tmp/coolercontrol-setup.XXXXXX.sh); then
+        display_error "无法创建临时文件" "请检查 /tmp 是否可写。"
+        return 1
+    fi
+
+    log_info "下载 CoolerControl 官方 Debian 源配置脚本..."
+    if ! pve_tools_download_file "$COOLERCONTROL_DEB_SETUP_URL" "$tmp_script" 60; then
+        rm -f "$tmp_script"
+        display_error "CoolerControl 源配置脚本下载失败" "请检查网络，或使用手动安装命令。"
+        return 1
+    fi
+
+    chmod +x "$tmp_script"
+    log_step "配置 CoolerControl APT 源..."
+    if ! bash "$tmp_script"; then
+        rm -f "$tmp_script"
+        display_error "CoolerControl APT 源配置失败" "请检查脚本输出，或参考官方文档手动配置。"
+        return 1
+    fi
+    rm -f "$tmp_script"
+
+    log_step "更新软件包索引..."
+    if ! apt-get update; then
+        display_error "apt-get update 失败" "第三方源可能未正确配置，已停止安装。"
+        return 1
+    fi
+
+    install_pkgs=(coolercontrold)
+    [[ "$install_desktop" == "yes" || "$install_desktop" == "YES" ]] && install_pkgs+=(coolercontrol)
+    [[ "$install_optional" == "yes" || "$install_optional" == "YES" ]] && install_pkgs+=(lm-sensors liquidctl)
+
+    log_step "安装软件包: ${install_pkgs[*]}"
+    if ! apt-get install -y "${install_pkgs[@]}"; then
+        display_error "CoolerControl 安装失败" "请检查包名、软件源和网络连接。"
+        return 1
+    fi
+
+    if systemctl enable --now coolercontrold; then
+        display_success "CoolerControl 安装完成" "打开 Web UI: $(coolercontrol_local_url)"
+    else
+        display_error "CoolerControl 已安装，但服务启动失败" "请运行 systemctl status coolercontrold 查看原因。"
+        return 1
+    fi
+}
+
+coolercontrol_update() {
+    block_non_pve9_destructive "更新 CoolerControl" || return 1
+
+    local upgrade_pkgs=()
+
+    if ! command -v apt-get >/dev/null 2>&1; then
+        display_error "缺少 apt-get" "请在 Debian/PVE 宿主机环境中运行。"
+        return 1
+    fi
+
+    if ! confirm_high_risk_action "更新 CoolerControl 软件包" "会刷新 apt 索引并升级 coolercontrold/coolercontrol 相关包。" "第三方源异常可能导致更新失败；服务重启期间风扇控制策略可能短暂不可用。" "请确认当前散热状态稳定，并保留控制台访问。" "COOLER-UPDATE"; then
+        return 0
+    fi
+
+    apt-get update || {
+        display_error "apt-get update 失败" "请检查 CoolerControl 源和网络连接。"
+        return 1
+    }
+
+    if command -v dpkg-query >/dev/null 2>&1; then
+        dpkg-query -W coolercontrold >/dev/null 2>&1 && upgrade_pkgs+=(coolercontrold)
+        dpkg-query -W coolercontrol >/dev/null 2>&1 && upgrade_pkgs+=(coolercontrol)
+        dpkg-query -W lm-sensors >/dev/null 2>&1 && upgrade_pkgs+=(lm-sensors)
+        dpkg-query -W liquidctl >/dev/null 2>&1 && upgrade_pkgs+=(liquidctl)
+    fi
+
+    if [[ ${#upgrade_pkgs[@]} -eq 0 ]]; then
+        display_error "未检测到已安装的 CoolerControl 相关包" "请先执行安装，或使用手动安装命令。"
+        return 1
+    fi
+
+    if ! apt-get install --only-upgrade -y "${upgrade_pkgs[@]}"; then
+        display_error "CoolerControl 更新失败" "请检查软件包是否已安装以及 apt 输出。"
+        return 1
+    fi
+
+    systemctl restart coolercontrold 2>/dev/null || log_warn "coolercontrold 重启失败，请手动检查服务状态。"
+    display_success "CoolerControl 更新完成" "Web UI: $(coolercontrol_local_url)"
+}
+
+coolercontrol_uninstall() {
+    block_non_pve9_destructive "卸载 CoolerControl" || return 1
+
+    if ! command -v apt-get >/dev/null 2>&1; then
+        display_error "缺少 apt-get" "请在 Debian/PVE 宿主机环境中运行。"
+        return 1
+    fi
+
+    clear
+    show_menu_header "卸载 CoolerControl"
+    echo "  将停止 coolercontrold 服务，并卸载 coolercontrol/coolercontrold 软件包。"
+    echo "  默认不会删除 Cloudsmith 源配置和用户配置目录，便于后续重新安装。"
+    echo "$UI_DIVIDER"
+
+    if ! confirm_high_risk_action "卸载 CoolerControl" "会停止第三方风扇控制服务并移除相关软件包。" "卸载后风扇控制将回到系统/固件默认行为，可能影响噪音和散热策略。" "请确认当前硬件默认风扇策略可接受，且已记录需要保留的 CoolerControl 配置。" "COOLER-REMOVE"; then
+        return 0
+    fi
+
+    systemctl disable --now coolercontrold 2>/dev/null || true
+    if apt-get remove -y coolercontrol coolercontrold; then
+        display_success "CoolerControl 已卸载" "如需清理配置，可按官方文档手动处理。"
+    else
+        display_error "CoolerControl 卸载失败" "请检查 apt 输出并手动处理。"
+        return 1
+    fi
+}
+
+coolercontrol_manager_menu() {
+    while true; do
+        clear
+        show_menu_header "Cooler Control 管理器"
+        echo -e "当前状态 ： $(coolercontrol_detect_status)"
+        echo -e "当前版本 ： $(coolercontrol_detect_version)"
+        echo "$UI_DIVIDER"
+        show_menu_option "1" "安装"
+        show_menu_option "2" "更新"
+        show_menu_option "3" "手动安装"
+        show_menu_option "4" "卸载"
+        echo "$UI_DIVIDER"
+        echo "注意：本功能仅作为安装服务和服务管理，如需反馈问题请前往项目官方开源仓库反馈！"
+        echo "$UI_DIVIDER"
+        echo "项目官网：$COOLERCONTROL_PROJECT_URL"
+        echo "开源协议：GNU General Public License v3.0 or later."
+        show_menu_option "0" "返回"
+        show_menu_footer
+
+        local choice
+        read -p "请选择操作 [0-4]: " choice
+        case "$choice" in
+            1) coolercontrol_install ;;
+            2) coolercontrol_update ;;
+            3) coolercontrol_print_manual_install ;;
+            4) coolercontrol_uninstall ;;
+            0) return ;;
+            *) log_error "无效选择" ;;
+        esac
+        pause_function
+    done
+}
+
+third_party_tools_menu() {
+    while true; do
+        clear
+        show_menu_header "第三方工具"
+        show_menu_option "1" "第三方软件市场 ${CYAN}(Modules)${NC}"
+        show_menu_option "2" "CoolerControl ${CYAN}(更好的管理风扇控制工具)${NC}"
+        show_menu_option "3" "Community Scripts ${CYAN}(社区脚本集合)${NC}"
+        show_menu_option "0" "返回"
+        show_menu_footer
+
+        local choice
+        read -p "请选择操作 [0-3]: " choice
+        case "$choice" in
+            1) third_party_market_menu ;;
+            2) coolercontrol_manager_menu ;;
+            3) third_party_community_scripts_info ;;
+            0) return ;;
+            *) log_error "无效选择" ;;
+        esac
+        pause_function
+    done
+}
 
 # PVE8 to PVE9 升级功能
 pve8_to_pve9_upgrade() {
@@ -6220,24 +6065,23 @@ show_system_info() {
 show_menu() {
     show_banner 
     show_menu_option "" "请选择您需要的功能："
-    show_menu_option "1" "日常优化与通知 ${CYAN}( 订阅弹窗 / 温度监控 / 电源模式 / 邮件 )${NC}"
-    show_menu_option "2" "软件源与系统升级 ${CYAN}( 换源 / 更新 / PVE8→9升级 )${NC}"
-    show_menu_option "3" "启动与内核管理 ${CYAN}( 内核切换 / 更新 / GRUB备份恢复 )${NC}"
-    show_menu_option "4" "硬件直通与显卡 ${CYAN}( 核显 / NVIDIA / AMD / IOMMU / 磁盘直通 )${NC}"
-    show_menu_option "5" "虚拟机运维与导入 ${CYAN}( FastPVE / 镜像导入 / 高级运维 )${NC}"
-    show_menu_option "6" "宿主机网络与防火墙 ${CYAN}( bridge / Bond / VLAN / IPv6 )${NC}"
-    show_menu_option "7" "存储与磁盘维护 ${CYAN}( Local合并 / Ceph / 休眠 / Swap )${NC}"
-    show_menu_option "8" "诊断工具与项目信息 ${CYAN}( 系统信息 / 救砖 / 项目链接 )${NC}"
-    show_menu_option "9" "Copy Fail 修复复查与清理 ${CYAN}( ${COPY_FAIL_CVE_ID} / 检测 / 清理 / 回滚 / 升级 )${NC}"
-    show_menu_option "10" "尝鲜 Go 版本 ${CYAN}( 体验Go版本的脚本哦！ )${NC}"
+    show_menu_option "1" "日常优化与通知 ${CYAN}( 弹窗 / 温度 / 电源 / 邮件 )${NC}"
+    show_menu_option "2" "软件源与系统升级 ${CYAN}( 换源 / 更新 / PVE升级 )${NC}"
+    show_menu_option "3" "启动与内核管理 ${CYAN}( 内核 / GRUB )${NC}"
+    show_menu_option "4" "硬件直通与显卡 ${CYAN}( IOMMU / GPU / RDM / NVMe )${NC}"
+    show_menu_option "5" "虚拟机运维与导入 ${CYAN}( 镜像 / 备份 / 恢复 / Cloud-Init )${NC}"
+    show_menu_option "6" "宿主机网络与防火墙 ${CYAN}( 网桥 / VLAN / Bond / 规则 )${NC}"
+    show_menu_option "7" "存储与磁盘维护 ${CYAN}( 路径 / 挂载 / 清理 / Ceph )${NC}"
+    show_menu_option "8" "诊断工具与项目信息 ${CYAN}( 系统信息 / 救砖 / 脚本管理 )${NC}"
+    show_menu_option "9" "安全中心 ${CYAN}( 风险检查 / SSH加固 )${NC}"
+    show_menu_option "10" "第三方工具 ${CYAN}( CoolerControl / Modules / 社区脚本 )${NC}"
     echo "$UI_DIVIDER"
     show_menu_option "0" "${RED}退出脚本${NC}"
     show_menu_footer
     echo
     echo -e "  ${YELLOW}Tips: ${SESSION_TIP:-一言获取失败，本次会话不再重试。}${NC}"
-    echo -e "  ${YELLOW}提示: 如果已完成内核升级，请进入 9 进行 Copy Fail 复查与清理。${NC}"
     echo
-    echo -ne "  ${PRIMARY}请输入您的选择 [0-9]: ${NC}"
+    echo -ne "  ${PRIMARY}请输入您的选择 [0-10]: ${NC}"
 }
 # 应急救砖工具箱菜单
 show_menu_rescue() {
@@ -6945,11 +6789,366 @@ vm_validate_backup_storage_name() {
         return 1
     fi
 }
+
+pve_tools_human_bytes() {
+    local bytes="$1"
+
+    if command -v numfmt >/dev/null 2>&1 && [[ "$bytes" =~ ^[0-9]+$ ]]; then
+        numfmt --to=iec --suffix=B "$bytes" 2>/dev/null && return 0
+    fi
+    echo "$bytes"
+}
+
+pve_storage_status_records() {
+    pvesm status 2>/dev/null | awk 'NR>1 {print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6 "|" $7}'
+}
+
+pve_storage_config_value() {
+    local store="$1"
+    local key="$2"
+
+    pvesm config "$store" 2>/dev/null | awk -v key="$key" '
+        {
+            line = $0
+            sub(/^[[:space:]]+/, "", line)
+            if (line ~ "^" key "([[:space:]]|:)") {
+                sub("^" key "[[:space:]]*:?[[:space:]]*", "", line)
+                print line
+                exit
+            }
+        }
+    '
+}
+
+pve_storage_file_backend() {
+    local type="$1"
+
+    case "$type" in
+        dir|nfs|cifs|cephfs|glusterfs) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+pve_storage_mount_path() {
+    local store="$1"
+    local type="$2"
+    local path
+
+    path="$(pve_storage_config_value "$store" path)"
+    if [[ -n "$path" ]]; then
+        echo "$path"
+        return 0
+    fi
+
+    case "$type" in
+        nfs|cifs|cephfs|glusterfs)
+            echo "/mnt/pve/$store"
+            return 0
+            ;;
+    esac
+
+    return 1
+}
+
+pve_storage_content_subdir() {
+    local content="$1"
+
+    case "$content" in
+        iso) echo "template/iso" ;;
+        backup) echo "dump" ;;
+        vztmpl) echo "template/cache" ;;
+        snippets) echo "snippets" ;;
+        images) echo "images" ;;
+        rootdir) echo "private" ;;
+        import) echo "import" ;;
+        *) return 1 ;;
+    esac
+}
+
+pve_storage_content_dir_override() {
+    local store="$1"
+    local content="$2"
+    local content_dirs entry key value
+
+    content_dirs="$(pve_storage_config_value "$store" content-dirs | tr -d ' ')"
+    [[ -n "$content_dirs" ]] || return 1
+    IFS=',' read -r -a entries <<< "$content_dirs"
+    for entry in "${entries[@]}"; do
+        key="${entry%%=*}"
+        value="${entry#*=}"
+        if [[ "$key" == "$content" && -n "$value" && "$value" != "$entry" ]]; then
+            echo "$value"
+            return 0
+        fi
+    done
+    return 1
+}
+
+pve_storage_content_path() {
+    local store="$1"
+    local type="$2"
+    local content="$3"
+    local root subdir
+
+    pve_storage_file_backend "$type" || return 1
+    root="$(pve_storage_mount_path "$store" "$type")" || return 1
+    subdir="$(pve_storage_content_dir_override "$store" "$content" || pve_storage_content_subdir "$content")" || return 1
+    printf '%s/%s\n' "${root%/}" "$subdir"
+}
+
+pve_storage_list_content_paths() {
+    local content="$1"
+    local store type status total used avail percent path
+
+    while IFS='|' read -r store type status total used avail percent; do
+        [[ -n "$store" ]] || continue
+        if vm_storage_supports_content "$store" "$content" && path="$(pve_storage_content_path "$store" "$type" "$content")"; then
+            printf '%s|%s|%s|%s\n' "$store" "$type" "$status" "$path"
+        fi
+    done < <(pve_storage_status_records)
+}
+
+pve_storage_usage_text() {
+    local path="$1"
+    local target="$path"
+
+    while [[ ! -e "$target" && "$target" != "/" ]]; do
+        target="$(dirname "$target")"
+    done
+    if [[ -e "$target" ]]; then
+        df -hP "$target" 2>/dev/null | awk 'NR==2 {printf "%s/%s 可用:%s 使用率:%s", $3, $2, $4, $5}'
+    else
+        echo "路径不存在或未挂载"
+    fi
+}
+
+pve_storage_find_owner_by_path() {
+    local file_path="$1"
+    local content="${2:-backup}"
+    local store type status path best_store="" best_len=0 len
+
+    while IFS='|' read -r store type status path; do
+        [[ -n "$path" ]] || continue
+        if [[ "$file_path" == "$path/"* || "$file_path" == "$path" ]]; then
+            len=${#path}
+            if (( len > best_len )); then
+                best_store="$store"
+                best_len=$len
+            fi
+        fi
+    done < <(pve_storage_list_content_paths "$content")
+
+    [[ -n "$best_store" ]] && echo "$best_store" || echo "unknown"
+}
+
+pve_storage_location_panel() {
+    if ! command -v pvesm >/dev/null 2>&1; then
+        display_error "未找到 pvesm" "请在 Proxmox VE 节点上运行。"
+        return 1
+    fi
+
+    clear
+    show_menu_header "存储位置查询面板"
+    echo -e "${YELLOW}说明:${NC} 文件级存储会显示可通过 SCP/SFTP 操作的目录；LVM/ZFS/RBD 等块存储不适合直接上传 ISO/备份文件。"
+    echo "$UI_DIVIDER"
+
+    local store type status total used avail percent contents root usage
+    printf "%-18s %-10s %-8s %-18s %s\n" "存储" "类型" "状态" "内容类型" "根路径/说明"
+    echo "$UI_DIVIDER"
+    while IFS='|' read -r store type status total used avail percent; do
+        [[ -n "$store" ]] || continue
+        contents="$(pve_storage_config_value "$store" content | tr -d ' ')"
+        if pve_storage_file_backend "$type" && root="$(pve_storage_mount_path "$store" "$type")"; then
+            usage="$(pve_storage_usage_text "$root")"
+            printf "%-18s %-10s %-8s %-18s %s (%s)\n" "$store" "$type" "$status" "${contents:-unknown}" "$root" "$usage"
+        else
+            printf "%-18s %-10s %-8s %-18s %s\n" "$store" "$type" "$status" "${contents:-unknown}" "块/对象存储：请通过 PVE 管理卷，不直接 SCP 文件"
+        fi
+    done < <(pve_storage_status_records)
+
+    echo "$UI_DIVIDER"
+    echo -e "${CYAN}常用上传路径:${NC}"
+    local path
+    local found=false
+    while IFS='|' read -r store type status path; do
+        found=true
+        usage="$(pve_storage_usage_text "$path")"
+        echo -e "  ${GREEN}[ISO]${NC} $store ($type): $path"
+        echo "       磁盘: $usage"
+        echo "       scp ./file.iso root@<PVE-IP>:\"$path/\""
+    done < <(pve_storage_list_content_paths iso)
+    [[ "$found" == true ]] || echo "  未发现支持 iso 内容类型的文件级存储。"
+
+    found=false
+    while IFS='|' read -r store type status path; do
+        found=true
+        usage="$(pve_storage_usage_text "$path")"
+        echo -e "  ${GREEN}[备份]${NC} $store ($type): $path"
+        echo "         磁盘: $usage"
+        echo "         scp ./vzdump-qemu-100.vma.zst root@<PVE-IP>:\"$path/\""
+    done < <(pve_storage_list_content_paths backup)
+    [[ "$found" == true ]] || echo "  未发现支持 backup 内容类型的文件级存储。"
+}
+
+pve_storage_mount_wizard_validate_storage_id() {
+    local storage_id="$1"
+
+    if [[ -z "$storage_id" || ! "$storage_id" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{1,30}$ ]]; then
+        display_error "存储 ID 不合法: $storage_id" "请使用字母、数字、点、下划线或短横线，长度 2-31。"
+        return 1
+    fi
+    if pvesm status 2>/dev/null | awk 'NR>1{print $1}' | grep -qx "$storage_id"; then
+        display_error "存储 ID 已存在: $storage_id" "请换一个名称，避免覆盖现有 PVE 存储。"
+        return 1
+    fi
+}
+
+pve_storage_mount_wizard_validate_mountpoint() {
+    local mountpoint="$1"
+
+    if [[ -z "$mountpoint" || "$mountpoint" != /* ]]; then
+        display_error "挂载点必须是绝对路径"
+        return 1
+    fi
+    case "$mountpoint" in
+        /|/boot|/boot/*|/etc|/etc/*|/usr|/usr/*|/var|/var/lib/vz|/var/lib/vz/*|/root|/root/*)
+            display_error "挂载点过于危险: $mountpoint" "建议使用 /mnt/pve/<存储ID> 或 /mnt/data/<名称>。"
+            return 1
+            ;;
+    esac
+}
+
+pve_storage_mount_wizard() {
+    block_non_pve9_destructive "磁盘挂载向导" || return 1
+
+    local candidates idx pick line dev fstype size uuid mountpoint storage_id content_types current_mount backup_path fstab_line output
+
+    if ! command -v lsblk >/dev/null 2>&1 || ! command -v pvesm >/dev/null 2>&1; then
+        display_error "缺少 lsblk 或 pvesm" "请在 Proxmox VE 节点上运行。"
+        return 1
+    fi
+
+    candidates="$(lsblk -rP -o NAME,TYPE,FSTYPE,SIZE,MOUNTPOINT,UUID 2>/dev/null | awk '
+        function val(key,    pat, out) {
+            pat = key "=\"[^\"]*\""
+            if (match($0, pat)) {
+                out = substr($0, RSTART + length(key) + 2, RLENGTH - length(key) - 3)
+                return out
+            }
+            return ""
+        }
+        val("TYPE") == "part" && (val("FSTYPE") == "ext4" || val("FSTYPE") == "xfs") {
+            print val("NAME") "|" val("FSTYPE") "|" val("SIZE") "|" val("MOUNTPOINT") "|" val("UUID")
+        }
+    ')"
+    clear
+    show_menu_header "磁盘挂载向导"
+    echo -e "${RED}高风险提醒:${NC} 该向导只挂载已有 ext4/xfs 分区并添加 dir 存储，不会格式化磁盘。仍请先确认数据已备份。"
+    echo -e "${YELLOW}已挂载分区、无文件系统分区、LVM/ZFS 成员不会作为候选。${NC}"
+    echo "$UI_DIVIDER"
+
+    if [[ -z "$candidates" ]]; then
+        display_error "未发现可挂载的 ext4/xfs 分区" "可用 lsblk -f 手动确认磁盘状态。"
+        return 1
+    fi
+
+    idx=1
+    while IFS='|' read -r dev fstype size current_mount uuid; do
+        printf "  [%d] %-22s %-6s %-8s 当前挂载:%s UUID:%s\n" "$idx" "$dev" "$fstype" "$size" "${current_mount:--}" "${uuid:--}"
+        idx=$((idx + 1))
+    done <<< "$candidates"
+    echo "$UI_DIVIDER"
+
+    read -p "请选择要挂载的分区序号 (0 返回): " pick
+    pick="${pick:-0}"
+    [[ "$pick" == "0" ]] && return 0
+    [[ "$pick" =~ ^[0-9]+$ ]] || return 1
+    line="$(echo "$candidates" | awk -v n="$pick" 'NR==n{print}')"
+    [[ -n "$line" ]] || return 1
+    IFS='|' read -r dev fstype size current_mount uuid <<< "$line"
+
+    if [[ -n "$current_mount" && "$current_mount" != "-" ]]; then
+        display_error "该分区已挂载: $current_mount" "为避免误操作，请先人工确认是否已被使用。"
+        return 1
+    fi
+    if [[ -z "$uuid" || "$uuid" == "-" ]]; then
+        uuid="$(blkid -s UUID -o value "$dev" 2>/dev/null || true)"
+    fi
+    if [[ -z "$uuid" ]]; then
+        display_error "无法读取分区 UUID: $dev" "请检查 blkid 输出。"
+        return 1
+    fi
+
+    read -p "请输入新的 PVE 存储 ID [data-$(basename "$dev")]: " storage_id
+    storage_id="${storage_id:-data-$(basename "$dev")}"
+    pve_storage_mount_wizard_validate_storage_id "$storage_id" || return 1
+
+    read -p "请输入挂载点 [/mnt/pve/$storage_id]: " mountpoint
+    mountpoint="${mountpoint:-/mnt/pve/$storage_id}"
+    pve_storage_mount_wizard_validate_mountpoint "$mountpoint" || return 1
+
+    if findmnt -rn --target "$mountpoint" >/dev/null 2>&1; then
+        display_error "挂载点已被占用: $mountpoint" "请换一个空目录。"
+        return 1
+    fi
+
+    read -p "请输入 PVE 内容类型 [images,iso,backup,vztmpl,snippets]: " content_types
+    content_types="${content_types:-images,iso,backup,vztmpl,snippets}"
+    content_types="$(echo "$content_types" | tr -d ' ')"
+    if [[ ! "$content_types" =~ ^[A-Za-z0-9_,]+$ ]]; then
+        display_error "内容类型包含非法字符" "示例: images,iso,backup"
+        return 1
+    fi
+
+    clear
+    show_menu_header "确认挂载配置"
+    echo -e "${CYAN}分区:${NC} $dev"
+    echo -e "${CYAN}文件系统:${NC} $fstype"
+    echo -e "${CYAN}UUID:${NC} $uuid"
+    echo -e "${CYAN}挂载点:${NC} $mountpoint"
+    echo -e "${CYAN}PVE 存储 ID:${NC} $storage_id"
+    echo -e "${CYAN}内容类型:${NC} $content_types"
+    echo "$UI_DIVIDER"
+
+    if ! confirm_high_risk_action "挂载已有分区并添加 PVE dir 存储" "会修改 /etc/fstab、创建挂载点，并向 PVE 添加新的 dir 存储。" "UUID 或挂载点选错可能导致启动时挂载失败；存储 ID 选错会造成 PVE 存储配置混乱。" "请确认该分区确实是要复用的数据盘，已完成外部备份，并准备控制台回滚方式。" "MOUNT-DIR"; then
+        return 0
+    fi
+
+    mkdir -p "$mountpoint" || {
+        display_error "无法创建挂载点: $mountpoint"
+        return 1
+    }
+
+    backup_file "/etc/fstab" backup_path >/dev/null 2>&1 || true
+    if ! grep -Eq "UUID=${uuid}[[:space:]]" /etc/fstab 2>/dev/null; then
+        fstab_line="UUID=${uuid} ${mountpoint} ${fstype} defaults,nofail 0 2"
+        printf '%s\n' "$fstab_line" >> /etc/fstab
+        log_success "已写入 /etc/fstab: $fstab_line"
+    else
+        log_warn "/etc/fstab 已存在 UUID=${uuid}，跳过重复写入。"
+    fi
+
+    if ! output="$(mount "$mountpoint" 2>&1)"; then
+        [[ -n "$backup_path" && -f "$backup_path" ]] && cp -a "$backup_path" /etc/fstab >/dev/null 2>&1 || true
+        echo "$output" | sed 's/^/  /'
+        display_error "挂载失败，已尝试回滚 /etc/fstab" "请检查分区、文件系统和挂载点。"
+        return 1
+    fi
+
+    if ! pvesm add dir "$storage_id" --path "$mountpoint" --content "$content_types" >/dev/null 2>&1; then
+        umount "$mountpoint" >/dev/null 2>&1 || true
+        [[ -n "$backup_path" && -f "$backup_path" ]] && cp -a "$backup_path" /etc/fstab >/dev/null 2>&1 || true
+        display_error "PVE dir 存储添加失败，已尝试卸载并回滚 /etc/fstab" "请检查 pvesm 输出或手动添加存储。"
+        return 1
+    fi
+
+    display_success "已有分区挂载并添加为 PVE dir 存储完成" "存储 ID: $storage_id，路径: $mountpoint"
+}
 vm_storage_supports_content() {
     local store="$1"
     local content="$2"
     local configured
-    configured="$(pvesm config "$store" 2>/dev/null | awk -F': ' '/^content:/{gsub(/ /, "", $2); print $2; exit}')"
+    configured="$(pve_storage_config_value "$store" content | tr -d '[:space:]')"
     [[ -n "$configured" ]] || return 1
     echo ",$configured," | grep -Fq ",$content,"
 }
@@ -7167,6 +7366,606 @@ vm_discover_backup_archives() {
             find "$root" -maxdepth 3 -type f \( -name 'vzdump-qemu-*.vma' -o -name 'vzdump-qemu-*.vma.gz' -o -name 'vzdump-qemu-*.vma.lzo' -o -name 'vzdump-qemu-*.vma.zst' \) -printf '%p|%s|%TY-%Tm-%Td %TH:%TM\n' 2>/dev/null || true
         fi
     done | sort -u
+}
+
+vm_discover_all_backup_archives() {
+    local roots=("/var/lib/vz/dump" "/mnt/pve" "/backup" "/backups" "/root")
+    local root
+    for root in "${roots[@]}"; do
+        if [[ -d "$root" ]]; then
+            find "$root" -maxdepth 4 -type f \( \
+                -name 'vzdump-qemu-*.vma' -o -name 'vzdump-qemu-*.vma.gz' -o -name 'vzdump-qemu-*.vma.lzo' -o -name 'vzdump-qemu-*.vma.zst' -o \
+                -name 'vzdump-lxc-*.tar' -o -name 'vzdump-lxc-*.tar.gz' -o -name 'vzdump-lxc-*.tar.lzo' -o -name 'vzdump-lxc-*.tar.zst' \
+            \) -printf '%p|%s|%TY-%Tm-%Td %TH:%TM\n' 2>/dev/null || true
+        fi
+    done | sort -u
+}
+
+vm_backup_archive_guest_type() {
+    local file_name="$1"
+
+    case "$(basename "$file_name")" in
+        vzdump-qemu-*) echo "VM" ;;
+        vzdump-lxc-*) echo "CT" ;;
+        *) echo "未知" ;;
+    esac
+}
+
+vm_backup_archive_vmid() {
+    local file_name
+    file_name="$(basename "$1")"
+    echo "$file_name" | sed -nE 's/^vzdump-(qemu|lxc)-([0-9]+)-.*/\2/p'
+}
+
+vm_backup_transfer_guide() {
+    if ! command -v pvesm >/dev/null 2>&1; then
+        display_error "未找到 pvesm" "请在 Proxmox VE 节点上运行。"
+        return 1
+    fi
+
+    local archives
+    archives="$(vm_discover_all_backup_archives)"
+
+    clear
+    show_menu_header "备份文件跨机恢复引导"
+    echo -e "${YELLOW}说明:${NC} PVE 备份文件通常放在支持 backup 内容类型的存储 dump 目录中；跨机迁移时把备份文件复制到目标节点对应 dump 目录后，再使用 Web UI 或 qmrestore/pct restore 恢复。"
+    echo "$UI_DIVIDER"
+
+    if [[ -z "$archives" ]]; then
+        log_warn "未发现常见 vzdump 备份文件。"
+    else
+        printf "%-5s %-6s %-8s %-10s %-16s %s\n" "序号" "类型" "VMID" "大小" "时间" "文件"
+        echo "$UI_DIVIDER"
+        local idx=1 path size mtime type vmid store
+        while IFS='|' read -r path size mtime; do
+            type="$(vm_backup_archive_guest_type "$path")"
+            vmid="$(vm_backup_archive_vmid "$path")"
+            store="$(pve_storage_find_owner_by_path "$path" backup)"
+            printf "%-5s %-6s %-8s %-10s %-16s %s\n" "$idx" "$type" "${vmid:-?}" "$(pve_tools_human_bytes "$size")" "$mtime" "$path"
+            echo "      存储: $store"
+            idx=$((idx + 1))
+        done <<< "$archives"
+    fi
+
+    echo "$UI_DIVIDER"
+    echo -e "${CYAN}当前节点可用于上传/恢复的备份目录:${NC}"
+    local path found=false
+    while IFS='|' read -r store type status path; do
+        found=true
+        echo "  - $store ($type): $path"
+        echo "    从本地上传到目标 PVE: scp ./vzdump-qemu-100.vma.zst root@<目标PVE-IP>:\"$path/\""
+    done < <(pve_storage_list_content_paths backup)
+    [[ "$found" == true ]] || echo "  未发现支持 backup 内容类型的文件级存储。"
+
+    echo "$UI_DIVIDER"
+    echo -e "${CYAN}从当前机器下载到本地电脑示例:${NC}"
+    echo "  scp root@<当前PVE-IP>:\"/var/lib/vz/dump/vzdump-qemu-100.vma.zst\" ./"
+    echo -e "${CYAN}目标机器恢复示例:${NC}"
+    echo "  VM: qmrestore /var/lib/vz/dump/vzdump-qemu-100.vma.zst <新VMID> --storage <磁盘存储>"
+    echo "  CT: pct restore <新CTID> /var/lib/vz/dump/vzdump-lxc-100.tar.zst --storage <rootfs存储>"
+    echo -e "${YELLOW}提示:${NC} NFS/CIFS 等共享备份存储在多节点间可能路径一致，但仍要确认目标节点能访问同一存储。"
+}
+
+pve_guest_exists() {
+    local guest_type="$1"
+    local vmid="$2"
+
+    [[ "$vmid" =~ ^[0-9]+$ ]] || return 1
+
+    case "$guest_type" in
+        VM|vm|qemu)
+            [[ -f "/etc/pve/qemu-server/${vmid}.conf" ]] && return 0
+            command -v qm >/dev/null 2>&1 && qm status "$vmid" >/dev/null 2>&1
+            ;;
+        CT|ct|lxc)
+            [[ -f "/etc/pve/lxc/${vmid}.conf" ]] && return 0
+            command -v pct >/dev/null 2>&1 && pct status "$vmid" >/dev/null 2>&1
+            ;;
+        *)
+            pve_guest_exists VM "$vmid" || pve_guest_exists CT "$vmid"
+            ;;
+    esac
+}
+
+garbage_cleanup_sum_sizes() {
+    awk -F'|' '{sum += $2} END {print sum + 0}'
+}
+
+garbage_cleanup_count_records() {
+    awk 'NF {count++} END {print count + 0}'
+}
+
+garbage_cleanup_temp_file_candidates() {
+    local age_days="${1:-3}"
+
+    [[ "$age_days" =~ ^[0-9]+$ ]] || age_days=3
+    if [[ -d /tmp ]]; then
+        find /tmp -maxdepth 1 -type f \( \
+            -name 'pve-tools-*' -o \
+            -name 'pve-third-party-*' -o \
+            -name 'fastpve-install.*.sh' -o \
+            -name 'pve8to9_check.log' -o \
+            -name 'pve-qemu-kvm.deb' \
+        \) -mtime +"$age_days" -printf '%p|%s|%TY-%Tm-%Td %TH:%TM|临时文件\n' 2>/dev/null || true
+    fi
+}
+
+garbage_cleanup_pve_tools_old_file_candidates() {
+    local age_days="${1:-90}"
+    local root
+
+    [[ "$age_days" =~ ^[0-9]+$ ]] || age_days=90
+    for root in "/var/backups/pve-tools" "$VM_CONFIG_EXPORT_DIR"; do
+        if [[ -d "$root" ]]; then
+            find "$root" -type f -mtime +"$age_days" -printf '%p|%s|%TY-%Tm-%Td %TH:%TM|PVE-Tools 旧文件\n' 2>/dev/null || true
+        fi
+    done
+}
+
+garbage_cleanup_print_file_records() {
+    local records="$1"
+    local idx=1 path size mtime reason
+
+    printf "%-5s %-10s %-16s %-18s %s\n" "序号" "大小" "时间" "类型" "文件"
+    echo "$UI_DIVIDER"
+    while IFS='|' read -r path size mtime reason; do
+        [[ -n "$path" ]] || continue
+        printf "%-5s %-10s %-16s %-18s %s\n" "$idx" "$(pve_tools_human_bytes "$size")" "$mtime" "$reason" "$path"
+        idx=$((idx + 1))
+    done <<< "$records"
+}
+
+garbage_cleanup_delete_file_records() {
+    local records="$1"
+    local success=0 failed=0 skipped=0 path size mtime reason mode answer
+
+    if [[ -z "$records" ]]; then
+        log_warn "没有可删除的候选文件。"
+        return 0
+    fi
+
+    read -p "删除模式：输入 all 批量删除，输入 item 逐项确认 [item]: " mode
+    mode="${mode:-item}"
+    [[ "$mode" == "all" || "$mode" == "item" ]] || mode="item"
+
+    while IFS='|' read -r path size mtime reason; do
+        [[ -n "$path" && -f "$path" ]] || {
+            skipped=$((skipped + 1))
+            continue
+        }
+        if [[ "$mode" == "item" ]]; then
+            read -p "删除 $path ? 输入 yes 确认: " answer
+            if [[ "$answer" != "yes" && "$answer" != "YES" ]]; then
+                skipped=$((skipped + 1))
+                continue
+            fi
+        fi
+        if rm -f -- "$path"; then
+            log_success "已删除: $path"
+            success=$((success + 1))
+        else
+            log_error "删除失败: $path"
+            failed=$((failed + 1))
+        fi
+    done <<< "$records"
+
+    log_info "删除完成：成功 $success，失败 $failed，跳过 $skipped"
+}
+
+garbage_cleanup_basic() {
+    block_non_pve9_destructive "垃圾清理（缓存/日志/临时文件）" || return 1
+
+    local temp_age journal_days pve_age auto_remove records total_size
+    read -p "清理 /tmp 中超过多少天的 PVE-Tools 临时文件 [3]: " temp_age
+    temp_age="${temp_age:-3}"
+    [[ "$temp_age" =~ ^[0-9]+$ ]] || temp_age=3
+
+    read -p "systemd-journal 保留天数 [14]: " journal_days
+    journal_days="${journal_days:-14}"
+    [[ "$journal_days" =~ ^[0-9]+$ ]] || journal_days=14
+
+    read -p "PVE-Tools 备份/导出文件保留天数 [90]: " pve_age
+    pve_age="${pve_age:-90}"
+    [[ "$pve_age" =~ ^[0-9]+$ ]] || pve_age=90
+
+    read -p "是否执行 apt autoremove 清理孤立依赖？输入 yes 启用 [no]: " auto_remove
+    auto_remove="${auto_remove:-no}"
+
+    records="$(
+        garbage_cleanup_temp_file_candidates "$temp_age"
+        garbage_cleanup_pve_tools_old_file_candidates "$pve_age"
+    )"
+    total_size="$(echo "$records" | garbage_cleanup_sum_sizes)"
+
+    clear
+    show_menu_header "垃圾清理预览"
+    echo -e "${CYAN}将执行:${NC}"
+    echo "  - apt-get autoclean 清理过期软件包缓存"
+    echo "  - journalctl --vacuum-time=${journal_days}d 压缩系统日志保留窗口"
+    echo "  - 删除超过 ${temp_age} 天的 PVE-Tools 临时文件"
+    echo "  - 删除超过 ${pve_age} 天的 PVE-Tools 备份/导出文件"
+    [[ "$auto_remove" == "yes" || "$auto_remove" == "YES" ]] && echo "  - apt-get autoremove -y 清理孤立依赖"
+    echo "$UI_DIVIDER"
+    if [[ -n "$records" ]]; then
+        garbage_cleanup_print_file_records "$records"
+        echo "$UI_DIVIDER"
+        echo -e "${YELLOW}候选文件合计:${NC} $(pve_tools_human_bytes "$total_size")"
+    else
+        echo "  未发现符合年龄条件的 PVE-Tools 临时/旧文件。"
+    fi
+
+    if ! confirm_high_risk_action "执行垃圾清理" "会删除上方列出的本工具临时/旧文件，并清理 apt 缓存与 journal 日志窗口。" "文件删除不可逆；apt autoremove 如果启用，可能移除系统认为不再需要的依赖包。" "请确认候选列表只包含可丢弃文件，重要备份已另存。" "CLEAN"; then
+        return 0
+    fi
+
+    log_step "清理 apt 过期缓存..."
+    apt-get autoclean -y || log_warn "apt-get autoclean 执行失败，请检查 apt 状态。"
+
+    if [[ "$auto_remove" == "yes" || "$auto_remove" == "YES" ]]; then
+        log_step "清理孤立依赖..."
+        apt-get autoremove -y || log_warn "apt-get autoremove 执行失败，请检查 apt 状态。"
+    fi
+
+    if command -v journalctl >/dev/null 2>&1; then
+        log_step "压缩 systemd journal 日志..."
+        journalctl --vacuum-time="${journal_days}d" || log_warn "journalctl 日志清理失败。"
+    fi
+
+    garbage_cleanup_delete_file_records "$records"
+}
+
+garbage_cleanup_backup_candidates() {
+    local mode="${1:-both}"
+    local age_days="${2:-180}"
+    local now cutoff path size mtime type vmid epoch old orphan reason
+
+    [[ "$age_days" =~ ^[0-9]+$ ]] || age_days=180
+    now="$(date +%s)"
+    cutoff=$((now - age_days * 86400))
+
+    while IFS='|' read -r path size mtime; do
+        [[ -n "$path" && -f "$path" ]] || continue
+        type="$(vm_backup_archive_guest_type "$path")"
+        vmid="$(vm_backup_archive_vmid "$path")"
+        epoch="$(stat -c '%Y' "$path" 2>/dev/null || echo 0)"
+        old=0
+        orphan=0
+        reason=""
+
+        if [[ "$epoch" =~ ^[0-9]+$ ]] && (( epoch > 0 && epoch < cutoff )); then
+            old=1
+            reason="超过 ${age_days} 天"
+        fi
+        if [[ -n "$vmid" && "$type" != "未知" ]] && ! pve_guest_exists "$type" "$vmid"; then
+            orphan=1
+            [[ -n "$reason" ]] && reason+=","
+            reason+="无对应 ${type} ${vmid}"
+        fi
+
+        case "$mode" in
+            old) (( old == 1 )) || continue ;;
+            orphan) (( orphan == 1 )) || continue ;;
+            both|*) (( old == 1 || orphan == 1 )) || continue ;;
+        esac
+        printf '%s|%s|%s|%s|%s|%s\n' "$path" "$size" "$mtime" "$type" "${vmid:-?}" "$reason"
+    done < <(vm_discover_all_backup_archives)
+}
+
+garbage_cleanup_print_backup_records() {
+    local records="$1"
+    local idx=1 path size mtime type vmid reason
+
+    printf "%-5s %-5s %-7s %-10s %-16s %-24s %s\n" "序号" "类型" "VMID" "大小" "时间" "原因" "文件"
+    echo "$UI_DIVIDER"
+    while IFS='|' read -r path size mtime type vmid reason; do
+        [[ -n "$path" ]] || continue
+        printf "%-5s %-5s %-7s %-10s %-16s %-24s %s\n" "$idx" "$type" "$vmid" "$(pve_tools_human_bytes "$size")" "$mtime" "$reason" "$path"
+        idx=$((idx + 1))
+    done <<< "$records"
+}
+
+garbage_cleanup_delete_backup_records() {
+    local records="$1"
+    local success=0 failed=0 skipped=0 path size mtime type vmid reason mode answer
+
+    if [[ -z "$records" ]]; then
+        log_warn "没有可删除的备份候选。"
+        return 0
+    fi
+
+    read -p "删除模式：输入 all 批量删除，输入 item 逐项确认 [item]: " mode
+    mode="${mode:-item}"
+    [[ "$mode" == "all" || "$mode" == "item" ]] || mode="item"
+
+    while IFS='|' read -r path size mtime type vmid reason; do
+        [[ -n "$path" && -f "$path" ]] || {
+            skipped=$((skipped + 1))
+            continue
+        }
+        if [[ "$mode" == "item" ]]; then
+            echo "备份: ${type:-?} ${vmid:-?} | $(pve_tools_human_bytes "$size") | ${reason:-未标注原因}"
+            read -p "删除 $path ? 输入 yes 确认: " answer
+            if [[ "$answer" != "yes" && "$answer" != "YES" ]]; then
+                skipped=$((skipped + 1))
+                continue
+            fi
+        fi
+        if rm -f -- "$path"; then
+            log_success "已删除备份: $path"
+            success=$((success + 1))
+        else
+            log_error "备份删除失败: $path"
+            failed=$((failed + 1))
+        fi
+    done <<< "$records"
+
+    log_info "备份清理完成：成功 $success，失败 $failed，跳过 $skipped"
+}
+
+garbage_cleanup_prune_backups() {
+    block_non_pve9_destructive "清理过期/无主备份文件" || return 1
+    vm_require_commands pvesm || return 1
+
+    local scope age_days records total_size
+    clear
+    show_menu_header "备份文件清理"
+    show_menu_option "1" "只列出无对应 VM/CT 的备份"
+    show_menu_option "2" "只列出超过指定天数的备份"
+    show_menu_option "3" "同时列出无主备份和过期备份"
+    echo "$UI_DIVIDER"
+    read -p "请选择筛选范围 [3]: " scope
+    scope="${scope:-3}"
+    case "$scope" in
+        1) scope="orphan" ;;
+        2) scope="old" ;;
+        *) scope="both" ;;
+    esac
+
+    read -p "过期备份阈值天数 [180]: " age_days
+    age_days="${age_days:-180}"
+    [[ "$age_days" =~ ^[0-9]+$ ]] || age_days=180
+
+    records="$(garbage_cleanup_backup_candidates "$scope" "$age_days")"
+    clear
+    show_menu_header "备份文件清理预览"
+    if [[ -z "$records" ]]; then
+        log_warn "未发现符合条件的备份文件。"
+        return 0
+    fi
+
+    garbage_cleanup_print_backup_records "$records"
+    total_size="$(echo "$records" | garbage_cleanup_sum_sizes)"
+    echo "$UI_DIVIDER"
+    echo -e "${YELLOW}候选备份合计:${NC} $(pve_tools_human_bytes "$total_size")"
+    echo -e "${YELLOW}提醒:${NC} NFS/CIFS 共享备份可能仍被其他节点使用，删除前请确认跨机恢复需求。"
+
+    if ! confirm_high_risk_action "删除上方列出的 vzdump 备份文件" "会永久删除备份文件，删除后无法通过这些备份恢复 VM/CT。" "如果误删最后一个可用备份，后续故障将缺少恢复点。" "请确认已有其他可用备份或确定这些备份不再需要。" "DELETE-BACKUP"; then
+        return 0
+    fi
+
+    garbage_cleanup_delete_backup_records "$records"
+}
+
+garbage_cleanup_snapshot_candidates() {
+    local age_days="${1:-90}"
+    local cutoff conf vmid guest_type
+
+    [[ "$age_days" =~ ^[0-9]+$ ]] || age_days=90
+    cutoff=$(($(date +%s) - age_days * 86400))
+
+    for conf in /etc/pve/qemu-server/*.conf /etc/pve/lxc/*.conf; do
+        [[ -f "$conf" ]] || continue
+        vmid="$(basename "$conf" .conf)"
+        guest_type="VM"
+        [[ "$conf" == /etc/pve/lxc/* ]] && guest_type="CT"
+        awk -v guest_type="$guest_type" -v vmid="$vmid" -v cutoff="$cutoff" '
+            /^\[[^]]+\]$/ {
+                snap = $0
+                gsub(/^\[/, "", snap)
+                gsub(/\]$/, "", snap)
+                next
+            }
+            snap != "" && /^snaptime:[[:space:]]*[0-9]+/ {
+                ts = $2
+                if (ts < cutoff) {
+                    print guest_type "|" vmid "|" snap "|" ts
+                }
+                snap = ""
+            }
+        ' "$conf"
+    done
+}
+
+garbage_cleanup_prune_snapshots() {
+    block_non_pve9_destructive "清理旧快照" || return 1
+
+    local age_days records count idx guest_type vmid snapshot_name epoch time_text mode answer success=0 failed=0 skipped=0
+    read -p "列出超过多少天的快照 [90]: " age_days
+    age_days="${age_days:-90}"
+    [[ "$age_days" =~ ^[0-9]+$ ]] || age_days=90
+
+    records="$(garbage_cleanup_snapshot_candidates "$age_days")"
+    clear
+    show_menu_header "旧快照清理预览"
+    if [[ -z "$records" ]]; then
+        log_warn "未发现超过 ${age_days} 天且带 snaptime 的 VM/CT 快照。"
+        return 0
+    fi
+
+    printf "%-5s %-5s %-7s %-24s %-20s\n" "序号" "类型" "VMID" "快照名" "创建时间"
+    echo "$UI_DIVIDER"
+    idx=1
+    while IFS='|' read -r guest_type vmid snapshot_name epoch; do
+        [[ -n "$snapshot_name" ]] || continue
+        time_text="$(date -d "@$epoch" '+%F %T' 2>/dev/null || echo "$epoch")"
+        printf "%-5s %-5s %-7s %-24s %-20s\n" "$idx" "$guest_type" "$vmid" "$snapshot_name" "$time_text"
+        idx=$((idx + 1))
+    done <<< "$records"
+    count="$(echo "$records" | garbage_cleanup_count_records)"
+    echo "$UI_DIVIDER"
+    echo -e "${YELLOW}候选快照数量:${NC} $count"
+
+    if ! confirm_high_risk_action "删除上方列出的旧快照" "删除快照后将失去对应时间点的快速回滚能力。" "如果快照是业务回退基线，误删后只能依赖外部备份恢复。" "请确认这些快照已经过期，且已有必要的外部备份。" "DELETE-SNAP"; then
+        return 0
+    fi
+
+    read -p "删除模式：输入 all 批量删除，输入 item 逐项确认 [item]: " mode
+    mode="${mode:-item}"
+    [[ "$mode" == "all" || "$mode" == "item" ]] || mode="item"
+
+    while IFS='|' read -r guest_type vmid snapshot_name epoch; do
+        [[ -n "$snapshot_name" ]] || continue
+        if [[ "$mode" == "item" ]]; then
+            read -p "删除 ${guest_type} ${vmid} 快照 ${snapshot_name} ? 输入 yes 确认: " answer
+            if [[ "$answer" != "yes" && "$answer" != "YES" ]]; then
+                skipped=$((skipped + 1))
+                continue
+            fi
+        fi
+
+        if [[ "$guest_type" == "VM" ]]; then
+            if qm delsnapshot "$vmid" "$snapshot_name" >/dev/null 2>&1; then
+                log_success "已删除 VM $vmid 快照: $snapshot_name"
+                success=$((success + 1))
+            else
+                log_error "删除 VM $vmid 快照失败: $snapshot_name"
+                failed=$((failed + 1))
+            fi
+        else
+            if pct delsnapshot "$vmid" "$snapshot_name" >/dev/null 2>&1; then
+                log_success "已删除 CT $vmid 快照: $snapshot_name"
+                success=$((success + 1))
+            else
+                log_error "删除 CT $vmid 快照失败: $snapshot_name"
+                failed=$((failed + 1))
+            fi
+        fi
+    done <<< "$records"
+
+    log_info "快照清理完成：成功 $success，失败 $failed，跳过 $skipped"
+}
+
+garbage_cleanup_collect_referenced_volumes() {
+    {
+        grep -hoE '[A-Za-z0-9_.-]+:(vm|base|subvol)-[0-9]+-[^,[:space:]]+' /etc/pve/qemu-server/*.conf 2>/dev/null || true
+        grep -hoE '[A-Za-z0-9_.-]+:(vm|base|subvol)-[0-9]+-[^,[:space:]]+' /etc/pve/lxc/*.conf 2>/dev/null || true
+    } | sort -u
+}
+
+garbage_cleanup_orphan_disk_report() {
+    vm_require_commands pvesm || return 1
+
+    local refs store type status total used avail percent content line volid size vmid owner_id records=""
+    refs="$(garbage_cleanup_collect_referenced_volumes)"
+
+    while IFS='|' read -r store type status total used avail percent; do
+        [[ -n "$store" ]] || continue
+        for content in images rootdir; do
+            vm_storage_supports_content "$store" "$content" || continue
+            while read -r line; do
+                [[ -n "$line" ]] || continue
+                volid="$(echo "$line" | awk '{print $1}')"
+                size="$(echo "$line" | awk '{print $4}')"
+                vmid="$(echo "$line" | awk '{print $5}')"
+                [[ "$volid" =~ :((vm|base|subvol)-[0-9]+-) ]] || continue
+                if echo "$refs" | grep -Fxq "$volid"; then
+                    continue
+                fi
+                owner_id="$(echo "$volid" | sed -nE 's/.*:(vm|base|subvol)-([0-9]+)-.*/\2/p')"
+                if [[ -n "$owner_id" ]] && pve_guest_exists any "$owner_id"; then
+                    continue
+                fi
+                records+="${volid}|${size:-0}|${vmid:-${owner_id:-?}}|${content}|${store}"$'\n'
+            done < <(pvesm list "$store" --content "$content" 2>/dev/null | awk 'NR>1')
+        done
+    done < <(pve_storage_status_records)
+
+    clear
+    show_menu_header "疑似孤立磁盘扫描（只读）"
+    echo -e "${YELLOW}说明:${NC} 该功能只扫描，不删除。底层卷误删风险很高，请先在 Web UI / VM 配置中二次核对。"
+    echo "$UI_DIVIDER"
+    if [[ -z "$records" ]]; then
+        log_success "未发现明显的孤立磁盘候选。"
+        return 0
+    fi
+
+    printf "%-5s %-18s %-8s %-10s %-8s %s\n" "序号" "存储" "VMID" "内容" "大小" "卷"
+    echo "$UI_DIVIDER"
+    local idx=1
+    while IFS='|' read -r volid size vmid content store; do
+        [[ -n "$volid" ]] || continue
+        printf "%-5s %-18s %-8s %-10s %-8s %s\n" "$idx" "$store" "$vmid" "$content" "$(pve_tools_human_bytes "$size")" "$volid"
+        echo "      人工核对后可用命令: pvesm free \"$volid\""
+        idx=$((idx + 1))
+    done <<< "$records"
+    echo "$UI_DIVIDER"
+    echo -e "${RED}未在脚本中提供自动删除孤立磁盘入口。${NC}"
+}
+
+garbage_cleanup_scan_report() {
+    local temp_records old_records backup_records snap_records
+    local temp_count old_count backup_count snap_count apt_cache_size pve_backup_size pve_export_size
+
+    temp_records="$(garbage_cleanup_temp_file_candidates 3)"
+    old_records="$(garbage_cleanup_pve_tools_old_file_candidates 90)"
+    backup_records="$(garbage_cleanup_backup_candidates both 180)"
+    snap_records="$(garbage_cleanup_snapshot_candidates 90)"
+    temp_count="$(echo "$temp_records" | garbage_cleanup_count_records)"
+    old_count="$(echo "$old_records" | garbage_cleanup_count_records)"
+    backup_count="$(echo "$backup_records" | garbage_cleanup_count_records)"
+    snap_count="$(echo "$snap_records" | garbage_cleanup_count_records)"
+    apt_cache_size="$(du -sh /var/cache/apt/archives 2>/dev/null | awk '{print $1}')"
+    pve_backup_size="$(du -sh /var/backups/pve-tools 2>/dev/null | awk '{print $1}')"
+    pve_export_size="$(du -sh "$VM_CONFIG_EXPORT_DIR" 2>/dev/null | awk '{print $1}')"
+
+    clear
+    show_menu_header "垃圾清理扫描报告"
+    echo -e "${CYAN}缓存与日志:${NC}"
+    echo "  apt 缓存目录: ${apt_cache_size:-未发现}"
+    if command -v journalctl >/dev/null 2>&1; then
+        echo -n "  systemd journal: "
+        journalctl --disk-usage 2>/dev/null || echo "无法读取"
+    fi
+    echo "$UI_DIVIDER"
+    echo -e "${CYAN}本工具旧文件:${NC}"
+    echo "  /tmp 中超过 3 天的 PVE-Tools 临时文件: $temp_count"
+    echo "  /var/backups/pve-tools 总大小: ${pve_backup_size:-未发现}"
+    echo "  $VM_CONFIG_EXPORT_DIR 总大小: ${pve_export_size:-未发现}"
+    echo "  超过 90 天的 PVE-Tools 备份/导出文件: $old_count"
+    echo "$UI_DIVIDER"
+    echo -e "${CYAN}PVE 资源候选:${NC}"
+    echo "  无主或超过 180 天的 vzdump 备份: $backup_count"
+    echo "  超过 90 天且带 snaptime 的 VM/CT 快照: $snap_count"
+    echo "  疑似孤立磁盘请使用菜单中的只读扫描单独查看。"
+}
+
+garbage_cleanup_menu() {
+    while true; do
+        clear
+        show_menu_header "垃圾清理"
+        show_menu_option "1" "一键扫描报告 ${CYAN}(只读)${NC}"
+        show_menu_option "2" "清理缓存、日志与本工具旧文件"
+        show_menu_option "3" "清理过期/无主 vzdump 备份"
+        show_menu_option "4" "清理旧 VM/CT 快照"
+        show_menu_option "5" "扫描疑似孤立磁盘 ${YELLOW}(只读，不删除)${NC}"
+        echo "$UI_DIVIDER"
+        echo -e "${YELLOW}说明:${NC} 清理前会列出候选项；备份和快照删除均需要高风险确认。"
+        show_menu_option "0" "返回"
+        show_menu_footer
+
+        local choice
+        read -p "请选择操作 [0-5]: " choice
+        case "$choice" in
+            1) garbage_cleanup_scan_report ;;
+            2) garbage_cleanup_basic ;;
+            3) garbage_cleanup_prune_backups ;;
+            4) garbage_cleanup_prune_snapshots ;;
+            5) garbage_cleanup_orphan_disk_report ;;
+            0) return ;;
+            *) log_error "无效选择" ;;
+        esac
+        pause_function
+    done
 }
 
 vm_select_backup_archive() {
@@ -7627,15 +8426,17 @@ vm_backup_restore_menu() {
         show_menu_option "1" "创建 VM 备份（vzdump）"
         show_menu_option "2" "从备份恢复为新 VM"
         show_menu_option "3" "定时备份任务管理"
+        show_menu_option "4" "备份文件跨机恢复引导"
         show_menu_option "0" "返回"
         show_menu_footer
 
         local choice
-        read -p "请选择操作 [0-3]: " choice
+        read -p "请选择操作 [0-4]: " choice
         case "$choice" in
             1) vm_backup_create ;;
             2) vm_restore_from_backup ;;
             3) vm_schedule_backup_menu ;;
+            4) vm_backup_transfer_guide ;;
             0) return ;;
             *) log_error "无效选择" ;;
         esac
@@ -8590,22 +9391,18 @@ menu_vm_container() {
         clear
         show_menu_header "虚拟机与容器"
         show_menu_option "1" "${CYAN}FastPVE${NC} - 虚拟机快速下载"
-        show_menu_option "2" "第三方软件市场 (Modules)"
-        show_menu_option "3" "${CYAN}Community Scripts${NC} - 第三方工具集"
-        show_menu_option "4" "虚拟机/容器定时开关机"
-        show_menu_option "5" "IMG 镜像导入（转 QCOW2/RAW）"
-        show_menu_option "6" "虚拟机高级运维工具箱"
+        show_menu_option "2" "虚拟机/容器定时开关机"
+        show_menu_option "3" "IMG 镜像导入（转 QCOW2/RAW）"
+        show_menu_option "4" "虚拟机高级运维工具箱"
         echo "$UI_DIVIDER"
         show_menu_option "0" "返回主菜单"
         show_menu_footer
-        read -p "请选择操作 [0-6]: " choice
+        read -p "请选择操作 [0-4]: " choice
         case $choice in
             1) fastpve_quick_download_menu ;;
-            2) third_party_market_menu ;;
-            3) third_party_tools_menu ;;
-            4) manage_vm_schedule ;;
-            5) img_convert_import_menu ;;
-            6) vm_advanced_operations_menu ;;
+            2) manage_vm_schedule ;;
+            3) img_convert_import_menu ;;
+            4) vm_advanced_operations_menu ;;
             0) return ;;
             *) log_error "无效选择" ;;
         esac
@@ -11086,18 +11883,23 @@ menu_storage_disk() {
     while true; do
         clear
         show_menu_header "存储与硬盘"
-        show_menu_option "1" "合并 ${CYAN}local${NC} 与 ${CYAN}local-lvm${NC}"
-        show_menu_option "2" "${CYAN}Ceph${NC} 管理 (安装/卸载/换源)"
-        show_menu_option "3" "硬盘休眠配置 ${CYAN}(hdparm)${NC}"
-        show_menu_option "4" "${RED}删除 Swap 分区${NC}"
+        show_menu_option "1" "存储位置查询面板 ${CYAN}(ISO/备份/SCP路径)${NC}"
+        show_menu_option "2" "磁盘挂载向导 ${CYAN}(复用已有 ext4/xfs 分区)${NC}"
+        show_menu_option "3" "合并 ${CYAN}local${NC} 与 ${CYAN}local-lvm${NC}"
+        show_menu_option "4" "${CYAN}Ceph${NC} 管理 (安装/卸载/换源)"
+        show_menu_option "5" "硬盘休眠配置 ${CYAN}(hdparm)${NC}"
+        show_menu_option "6" "垃圾清理 ${CYAN}(缓存/备份/快照扫描)${NC}"
+        show_menu_option "7" "${RED}删除 Swap 分区${NC}"
         echo "$UI_DIVIDER"
         show_menu_option "0" "返回主菜单"
         show_menu_footer
-        read -p "请选择操作 [0-4]: " choice
+        read -p "请选择操作 [0-7]: " choice
         case $choice in
-            1) merge_local_storage ;;
-            2) ceph_management_menu ;;
-            3) 
+            1) pve_storage_location_panel ;;
+            2) pve_storage_mount_wizard ;;
+            3) merge_local_storage ;;
+            4) ceph_management_menu ;;
+            5) 
                 lsblk -o NAME,MODEL,TYPE,SIZE,MOUNTPOINT | grep disk
                 read -p "请输入要配置休眠的硬盘盘符 (如 sdb, 不含/dev/): " disk_name
                 if [ -b "/dev/$disk_name" ]; then
@@ -11112,7 +11914,8 @@ menu_storage_disk() {
                     log_error "未找到磁盘 /dev/$disk_name"
                 fi
                 ;;
-            4) remove_swap ;;
+            6) garbage_cleanup_menu ;;
+            7) remove_swap ;;
             0) return ;;
             *) log_error "无效选择" ;;
         esac
@@ -11127,14 +11930,18 @@ menu_tools_about() {
         show_menu_header "工具与关于"
         show_menu_option "1" "系统信息概览"
         show_menu_option "2" "应急救砖工具箱"
-        show_menu_option "3" "给作者点个 Star 吧"
+        show_menu_option "3" "本地脚本快捷更新"
+        show_menu_option "4" "${RED}本地脚本快捷卸载${NC}"
+        show_menu_option "5" "给作者点个 Star 吧"
         show_menu_option "0" "返回主菜单"
         show_menu_footer
-        read -p "请选择操作 [0-3]: " choice
+        read -p "请选择操作 [0-5]: " choice
         case $choice in
             1) show_system_info ;;
             2) show_menu_rescue ;;
-            3) 
+            3) pve_tools_local_update ;;
+            4) pve_tools_local_uninstall ;;
+            5) 
                 echo -e "${YELLOW}项目地址：https://github.com/PVE-Tools/PVE-Tools-9${NC}"
                 echo -e "${GREEN}您的支持是我更新的最大动力，谢谢喵~${NC}"
                 ;;
@@ -11151,11 +11958,11 @@ quick_setup() {
     log_step "开始一键配置"
     log_step "天涯若比邻，海内存知己，坐和放宽，让我来搞定一切。"
     echo
-    change_sources
+    change_sources || return 1
     echo
-    remove_subscription_popup
+    remove_subscription_popup || return 1
     echo
-    update_system
+    update_system || return 1
     echo
     log_success "一键配置全部完成！您的 PVE 已经完美优化"
     echo -e "现在您可以愉快地使用 PVE 了！"
@@ -11185,52 +11992,216 @@ show_menu_option() {
 }
 
 # 镜像源选择函数
+mirror_uri_by_type() {
+    local source_type="$1"
+    local idx="$2"
+
+    case "$source_type" in
+        debian) echo "${MIRROR_DEBIAN_URIS[$idx]}" ;;
+        security) echo "${MIRROR_SECURITY_URIS[$idx]}" ;;
+        pve) echo "${MIRROR_PVE_URIS[$idx]}" ;;
+        ceph) echo "${MIRROR_CEPH_URIS[$idx]}" ;;
+        ct) echo "${MIRROR_CT_URIS[$idx]}" ;;
+        *) echo "" ;;
+    esac
+}
+
+mirror_set_selected() {
+    local source_type="$1"
+    local idx="$2"
+
+    case "$source_type" in
+        debian) MIRROR_SELECTED_DEBIAN="$idx" ;;
+        security) MIRROR_SELECTED_SECURITY="$idx" ;;
+        pve) MIRROR_SELECTED_PVE="$idx" ;;
+        ceph) MIRROR_SELECTED_CEPH="$idx" ;;
+        ct) MIRROR_SELECTED_CT="$idx" ;;
+        *) return 1 ;;
+    esac
+}
+
+mirror_reset_selection() {
+    MIRROR_SELECTED_DEBIAN=-1
+    MIRROR_SELECTED_SECURITY=-1
+    MIRROR_SELECTED_PVE=-1
+    MIRROR_SELECTED_CEPH=-1
+    MIRROR_SELECTED_CT=-1
+}
+
+mirror_selection_complete() {
+    [[ "$MIRROR_SELECTED_DEBIAN" =~ ^[0-9]+$ && "$MIRROR_SELECTED_DEBIAN" -ge 0 ]] || return 1
+    [[ "$MIRROR_SELECTED_SECURITY" =~ ^[0-9]+$ && "$MIRROR_SELECTED_SECURITY" -ge 0 ]] || return 1
+    [[ "$MIRROR_SELECTED_PVE" =~ ^[0-9]+$ && "$MIRROR_SELECTED_PVE" -ge 0 ]] || return 1
+    [[ "$MIRROR_SELECTED_CEPH" =~ ^[0-9]+$ && "$MIRROR_SELECTED_CEPH" -ge 0 ]] || return 1
+    [[ "$MIRROR_SELECTED_CT" =~ ^[0-9]+$ && "$MIRROR_SELECTED_CT" -ge 0 ]] || return 1
+}
+
+mirror_selected_index_by_type() {
+    local source_type="$1"
+
+    case "$source_type" in
+        debian) echo "$MIRROR_SELECTED_DEBIAN" ;;
+        security) echo "$MIRROR_SELECTED_SECURITY" ;;
+        pve) echo "$MIRROR_SELECTED_PVE" ;;
+        ceph) echo "$MIRROR_SELECTED_CEPH" ;;
+        ct) echo "$MIRROR_SELECTED_CT" ;;
+        *) echo "-1" ;;
+    esac
+}
+
+mirror_source_label() {
+    local source_type="$1"
+
+    case "$source_type" in
+        debian) echo "Debian 软件源" ;;
+        security) echo "Debian Security 安全源" ;;
+        pve) echo "Proxmox VE no-subscription 源" ;;
+        ceph) echo "Ceph Squid 源" ;;
+        ct) echo "CT 模板源" ;;
+        *) echo "$source_type" ;;
+    esac
+}
+
+mirror_print_selection_summary() {
+    echo "$UI_DIVIDER"
+    echo -e "${CYAN}当前镜像源配置:${NC}"
+    local source_type idx uri
+    for source_type in debian security pve ceph ct; do
+        idx="$(mirror_selected_index_by_type "$source_type")"
+        if [[ "$idx" =~ ^[0-9]+$ && "$idx" -ge 0 ]]; then
+            uri="$(mirror_uri_by_type "$source_type" "$idx")"
+            [[ -n "$uri" ]] || uri="官方源兜底"
+            printf "  %-12s %-24s %s\n" "$(mirror_source_label "$source_type"):" "${MIRROR_NAMES[$idx]}" "$uri"
+        else
+            printf "  %-12s %s\n" "$(mirror_source_label "$source_type"):" "未选择"
+        fi
+    done
+    echo "$UI_DIVIDER"
+}
+
+mirror_print_recommendation_notice() {
+    echo -e "  ${YELLOW}推荐优先选择靠前的镜像源。地区性高校源可能会起到反向作用，例如：同步慢、高峰期丢包、随时不可用等。${NC}"
+    echo -e "  ${YELLOW}如使用生产环境，请优先使用官方源或商业源（阿里云/腾讯云）。${NC}"
+    echo "$UI_DIVIDER"
+}
+
+select_mirror_for_source() {
+    local source_type="$1"
+    local label="$2"
+    local selected_var="$3"
+    local candidates=()
+    local idx uri pick selected_idx
+
+    while true; do
+        clear
+        show_menu_header "$label"
+        mirror_print_recommendation_notice
+        candidates=()
+        for idx in "${!MIRROR_NAMES[@]}"; do
+            uri="$(mirror_uri_by_type "$source_type" "$idx")"
+            [[ -n "$uri" ]] || continue
+            candidates+=("$idx")
+            printf "  ${PRIMARY}%-3s${NC}. %-28s %s\n" "${#candidates[@]}" "${MIRROR_NAMES[$idx]}" "$uri"
+        done
+        echo "$UI_DIVIDER"
+        show_menu_option "0" "返回"
+        show_menu_footer
+
+        read -p "请选择 $label [0-${#candidates[@]}]: " pick
+        pick="${pick:-0}"
+        [[ "$pick" == "0" ]] && return 1
+        if [[ ! "$pick" =~ ^[0-9]+$ ]] || (( pick < 1 || pick > ${#candidates[@]} )); then
+            log_error "无效选择，请重新输入"
+            pause_function
+            continue
+        fi
+
+        selected_idx="${candidates[$((pick - 1))]}"
+        mirror_set_selected "$source_type" "$selected_idx" || return 1
+        [[ -n "$selected_var" ]] && printf -v "$selected_var" '%s' "$selected_idx"
+        log_success "$label 已选择: ${MIRROR_NAMES[$selected_idx]}"
+        return 0
+    done
+}
+
+select_mirror_unified() {
+    local candidates=()
+    local idx pick selected_idx
+
+    while true; do
+        clear
+        show_menu_header "全部使用同一镜像"
+        mirror_print_recommendation_notice
+        echo "  仅展示同时支持 Debian / Security / PVE / Ceph / CT 的镜像。"
+        echo "$UI_DIVIDER"
+        candidates=()
+        for idx in "${!MIRROR_NAMES[@]}"; do
+            [[ -n "${MIRROR_DEBIAN_URIS[$idx]}" ]] || continue
+            [[ -n "${MIRROR_SECURITY_URIS[$idx]}" ]] || continue
+            [[ -n "${MIRROR_PVE_URIS[$idx]}" ]] || continue
+            [[ -n "${MIRROR_CEPH_URIS[$idx]}" ]] || continue
+            [[ -n "${MIRROR_CT_URIS[$idx]}" ]] || continue
+            candidates+=("$idx")
+            printf "  ${PRIMARY}%-3s${NC}. %s\n" "${#candidates[@]}" "${MIRROR_NAMES[$idx]}"
+        done
+        echo "$UI_DIVIDER"
+        show_menu_option "0" "返回"
+        show_menu_footer
+
+        read -p "请选择统一镜像 [0-${#candidates[@]}]: " pick
+        pick="${pick:-0}"
+        [[ "$pick" == "0" ]] && return 1
+        if [[ ! "$pick" =~ ^[0-9]+$ ]] || (( pick < 1 || pick > ${#candidates[@]} )); then
+            log_error "无效选择，请重新输入"
+            pause_function
+            continue
+        fi
+
+        selected_idx="${candidates[$((pick - 1))]}"
+        MIRROR_SELECTED_DEBIAN="$selected_idx"
+        MIRROR_SELECTED_SECURITY="$selected_idx"
+        MIRROR_SELECTED_PVE="$selected_idx"
+        MIRROR_SELECTED_CEPH="$selected_idx"
+        MIRROR_SELECTED_CT="$selected_idx"
+        mirror_print_selection_summary
+        return 0
+    done
+}
+
+select_mirror_per_source() {
+    mirror_reset_selection
+    select_mirror_for_source debian "Debian 软件源" || { mirror_reset_selection; return 1; }
+    select_mirror_for_source security "Debian Security 安全源" || { mirror_reset_selection; return 1; }
+    select_mirror_for_source pve "Proxmox VE no-subscription 源" || { mirror_reset_selection; return 1; }
+    select_mirror_for_source ceph "Ceph Squid 源" || { mirror_reset_selection; return 1; }
+    select_mirror_for_source ct "CT 模板源" || { mirror_reset_selection; return 1; }
+
+    clear
+    show_menu_header "镜像源选择摘要"
+    mirror_print_selection_summary
+    read -p "确认使用以上配置？输入 yes 确认，其他任意键返回: " confirm
+    [[ "$confirm" == "yes" || "$confirm" == "YES" ]] || { mirror_reset_selection; return 1; }
+}
+
 select_mirror() {
     while true; do
         clear
-        show_menu_header "请选择镜像源"
-        show_menu_option "1" "中科大镜像源"
-        show_menu_option "2" "清华Tuna镜像源" 
-        show_menu_option "3" "Debian默认源"
-        show_menu_option "4" "腾讯云公网镜像源（Debian/安全）"
-        show_menu_option "5" "阿里云公网镜像源（Debian/安全/Ceph）"
-        echo -e "${UI_DIVIDER}"
-        echo "注意：选择后将作为后续所有软件源操作的基础"
-        echo -e "${UI_DIVIDER}"
-        echo
-        
-        read -p "请选择 [1-5]: " mirror_choice
-        
-        case $mirror_choice in
-            1)
-                SELECTED_MIRROR=$MIRROR_USTC
-                log_success "已选择中科大镜像源"
-                break
-                ;;
-            2)
-                SELECTED_MIRROR=$MIRROR_TUNA
-                log_success "已选择清华Tuna镜像源"
-                break
-                ;;
-            3)
-                SELECTED_MIRROR=$MIRROR_DEBIAN
-                log_success "已选择Debian默认源"
-                break
-                ;;
-            4)
-                SELECTED_MIRROR=$MIRROR_TENCENT
-                log_success "已选择腾讯云公网镜像源"
-                break
-                ;;
-            5)
-                SELECTED_MIRROR=$MIRROR_ALIYUN
-                log_success "已选择阿里云公网镜像源"
-                break
-                ;;
-            *)
-                log_error "无效选择，请重新输入"
-                pause_function
-                ;;
+        show_menu_header "镜像源配置"
+        mirror_print_recommendation_notice
+        show_menu_option "1" "全部使用同一镜像（快速）"
+        show_menu_option "2" "按源类型分别选择（推荐）"
+        show_menu_option "3" "跳过（稍后在菜单中配置）"
+        echo "$UI_DIVIDER"
+        echo "  跳过时不会写入软件源；再次执行更换软件源会重新进入本配置。"
+        show_menu_footer
+
+        local choice
+        read -p "请选择 [1-3]: " choice
+        case "$choice" in
+            1) select_mirror_unified && return 0 ;;
+            2) select_mirror_per_source && return 0 ;;
+            3) mirror_reset_selection; log_info "已跳过镜像源配置"; return 1 ;;
+            *) log_error "无效选择，请重新输入"; pause_function ;;
         esac
     done
 }
@@ -11238,64 +12209,31 @@ select_mirror() {
 # 版本检查函数
 check_update() {
     log_info "正在检查更新..."
-    
-    download_file() {
-        local url="$1"
-        local timeout=10
-        
-        if command -v curl &> /dev/null; then
-            curl -s --connect-timeout $timeout --max-time $timeout "$url" 2>/dev/null
-        elif command -v wget &> /dev/null; then
-            wget -q -T $timeout -O - "$url" 2>/dev/null
-        else
-            echo ""
-        fi
-    }
-    
+
     # 显示进度提示
     echo -ne "[....] 正在检查更新...\033[0K\r"
 
-    local prefer_mirror=0
-    local preferred_version_url="$VERSION_FILE_URL"
-    local preferred_update_url="$UPDATE_FILE_URL"
+    local update_urls prefer_mirror preferred_version_url preferred_update_url preferred_script_url
     local mirror_version_url="${GITHUB_MIRROR_PREFIX}${VERSION_FILE_URL}"
     local mirror_update_url="${GITHUB_MIRROR_PREFIX}${UPDATE_FILE_URL}"
 
-    if [[ -n "$USER_COUNTRY_CODE" ]]; then
-        prefer_mirror=$USE_MIRROR_FOR_UPDATE
-        if [[ $prefer_mirror -eq 1 ]]; then
-            log_info "当前地区为： $USER_COUNTRY_CODE，使用镜像源检查更新...请等待 3 秒"
-            # log_info "检测到中国大陆网络环境，将优先使用镜像源检查更新"
-            preferred_version_url="$mirror_version_url"
-            preferred_update_url="$mirror_update_url"
-        else
-            log_info "检测到当前地区为: $USER_COUNTRY_CODE，将使用 GitHub 源检查更新"
-        fi
-    elif detect_network_region; then
-        prefer_mirror=$USE_MIRROR_FOR_UPDATE
-        if [[ $prefer_mirror -eq 1 ]]; then
-            log_info "当前地区为： $USER_COUNTRY_CODE，使用镜像源检查更新...请等待 3 秒"
-            # log_info "检测到中国大陆网络环境，将优先使用镜像源检查更新"
-            preferred_version_url="$mirror_version_url"
-            preferred_update_url="$mirror_update_url"
-        else
-            if [[ -n "$USER_COUNTRY_CODE" ]]; then
-                log_info "检测到当前地区为: $USER_COUNTRY_CODE，将使用 GitHub 源检查更新"
-            fi
-        fi
+    update_urls="$(pve_tools_choose_update_urls)"
+    IFS='|' read -r prefer_mirror preferred_version_url preferred_update_url preferred_script_url <<< "$update_urls"
+    if [[ "$prefer_mirror" -eq 1 ]]; then
+        log_info "当前地区为： ${USER_COUNTRY_CODE:-unknown}，使用镜像源检查更新..."
     else
-        log_warn "无法获取网络地区信息，默认使用 GitHub 源检查更新"
+        log_info "使用 GitHub 源检查更新"
     fi
 
-    remote_content=$(download_file "$preferred_version_url")
+    remote_content=$(pve_tools_download_url "$preferred_version_url" 10)
 
     if [ -z "$remote_content" ]; then
         if [[ $prefer_mirror -eq 1 ]]; then
             log_warn "镜像源连接失败，尝试使用 GitHub 源..."
-            remote_content=$(download_file "$VERSION_FILE_URL")
+            remote_content=$(pve_tools_download_url "$VERSION_FILE_URL" 10)
         else
             log_warn "GitHub 连接失败，尝试使用镜像源..."
-            remote_content=$(download_file "$mirror_version_url")
+            remote_content=$(pve_tools_download_url "$mirror_version_url" 10)
         fi
     fi
     
@@ -11321,20 +12259,20 @@ check_update() {
         return
     fi
 
-    detailed_changelog=$(download_file "$preferred_update_url")
+    detailed_changelog=$(pve_tools_download_url "$preferred_update_url" 10)
 
     if [ -z "$detailed_changelog" ]; then
         if [[ $prefer_mirror -eq 1 ]]; then
             log_warn "镜像源更新日志获取失败，尝试使用 GitHub 源..."
-            detailed_changelog=$(download_file "$UPDATE_FILE_URL")
+            detailed_changelog=$(pve_tools_download_url "$UPDATE_FILE_URL" 10)
         else
             log_warn "GitHub 更新日志获取失败，尝试使用镜像源..."
-            detailed_changelog=$(download_file "$mirror_update_url")
+            detailed_changelog=$(pve_tools_download_url "$mirror_update_url" 10)
         fi
     fi
     
     # 比较版本
-    if [ "$(printf '%s\n' "$remote_version" "$CURRENT_VERSION" | sort -V | tail -n1)" != "$CURRENT_VERSION" ]; then
+    if pve_tools_version_gt "$remote_version" "$CURRENT_VERSION"; then
         echo -e "${UI_HEADER}"
         echo -e "${YELLOW}🚀 发现新版本！推荐更新以获取最新功能和修复喵${NC}"
         echo -e "----------------------------------------------"
@@ -11371,6 +12309,646 @@ check_update() {
     else
         log_success "当前已是最新版本 ($CURRENT_VERSION) 放心用吧"
     fi
+}
+
+pve_tools_local_update() {
+    local current_script="${BASH_SOURCE[0]}"
+    local resolved_script backup_dir backup_path tmp_script update_urls prefer_mirror version_url update_url script_url
+    local remote_content remote_version detailed_changelog fallback_script_url
+
+    if [[ -z "$current_script" || ! -f "$current_script" ]]; then
+        display_error "无法定位当前脚本文件" "请使用本地文件方式运行脚本后再执行更新。"
+        return 1
+    fi
+
+    resolved_script="$(readlink -f "$current_script" 2>/dev/null || realpath "$current_script" 2>/dev/null || echo "$current_script")"
+    if [[ ! -w "$resolved_script" ]]; then
+        display_error "当前脚本不可写: $resolved_script" "请使用 root 或确认脚本文件权限后重试。"
+        return 1
+    fi
+
+    update_urls="$(pve_tools_choose_update_urls)"
+    IFS='|' read -r prefer_mirror version_url update_url script_url <<< "$update_urls"
+    remote_content="$(pve_tools_download_url "$version_url" 15)"
+    if [[ -z "$remote_content" ]]; then
+        if [[ "$prefer_mirror" -eq 1 ]]; then
+            log_warn "镜像源版本文件获取失败，尝试 GitHub 源。"
+            remote_content="$(pve_tools_download_url "$VERSION_FILE_URL" 15)"
+        else
+            log_warn "GitHub 版本文件获取失败，尝试镜像源。"
+            remote_content="$(pve_tools_download_url "${GITHUB_MIRROR_PREFIX}${VERSION_FILE_URL}" 15)"
+        fi
+    fi
+
+    if [[ -z "$remote_content" ]]; then
+        display_error "无法获取远程版本信息" "网络不通或 GitHub/镜像源不可用，已保持本地脚本不变。"
+        return 1
+    fi
+
+    remote_version="$(echo "$remote_content" | head -1 | tr -d '[:space:]')"
+    if [[ -z "$remote_version" ]]; then
+        display_error "远程版本文件格式异常" "已保持本地脚本不变。"
+        return 1
+    fi
+
+    detailed_changelog="$(pve_tools_download_url "$update_url" 15)"
+    if [[ -z "$detailed_changelog" ]]; then
+        if [[ "$prefer_mirror" -eq 1 ]]; then
+            detailed_changelog="$(pve_tools_download_url "$UPDATE_FILE_URL" 15)"
+        else
+            detailed_changelog="$(pve_tools_download_url "${GITHUB_MIRROR_PREFIX}${UPDATE_FILE_URL}" 15)"
+        fi
+    fi
+
+    clear
+    show_menu_header "本地脚本快捷更新"
+    echo -e "${CYAN}当前脚本:${NC} $resolved_script"
+    echo -e "${CYAN}当前版本:${NC} $CURRENT_VERSION"
+    echo -e "${CYAN}远程版本:${NC} $remote_version"
+    echo -e "${CYAN}下载来源:${NC} $script_url"
+    echo "$UI_DIVIDER"
+    if pve_tools_version_gt "$remote_version" "$CURRENT_VERSION"; then
+        echo -e "${GREEN}发现可更新版本。${NC}"
+    elif [[ "$remote_version" == "$CURRENT_VERSION" ]]; then
+        echo -e "${YELLOW}远程版本与当前版本一致，也可以选择强制覆盖本地脚本。${NC}"
+    else
+        echo -e "${YELLOW}远程版本看起来不高于当前版本，默认不建议覆盖。${NC}"
+    fi
+    echo "$UI_DIVIDER"
+    if [[ -n "$detailed_changelog" ]]; then
+        echo -e "${CYAN}更新日志预览:${NC}"
+        echo "$detailed_changelog" | head -n 30 | sed 's/^/  /'
+        echo "$UI_DIVIDER"
+    fi
+
+    read -p "是否下载并替换本地脚本？(yes/no) [no]: " confirm
+    confirm="${confirm:-no}"
+    if [[ "$confirm" != "yes" && "$confirm" != "YES" ]]; then
+        log_info "已取消脚本更新。"
+        return 0
+    fi
+
+    backup_dir="/var/backups/pve-tools"
+    mkdir -p "$backup_dir" || {
+        display_error "无法创建备份目录: $backup_dir" "已保持本地脚本不变。"
+        return 1
+    }
+    backup_path="${backup_dir}/PVE-Tools.sh.bak"
+    tmp_script="$(mktemp /tmp/pve-tools-update.XXXXXX)" || {
+        display_error "无法创建临时文件" "已保持本地脚本不变。"
+        return 1
+    }
+
+    if ! cp -a "$resolved_script" "$backup_path"; then
+        rm -f "$tmp_script"
+        display_error "备份当前脚本失败" "目标备份: $backup_path。已保持本地脚本不变。"
+        return 1
+    fi
+    log_success "当前脚本已备份: $backup_path"
+
+    if ! pve_tools_download_url "$script_url" 30 > "$tmp_script"; then
+        fallback_script_url="$PVE_TOOLS_SCRIPT_URL"
+        [[ "$script_url" == "$PVE_TOOLS_SCRIPT_URL" ]] && fallback_script_url="${GITHUB_MIRROR_PREFIX}${PVE_TOOLS_SCRIPT_URL}"
+        log_warn "首选脚本下载失败，尝试备用源: $fallback_script_url"
+        if ! pve_tools_download_url "$fallback_script_url" 30 > "$tmp_script"; then
+            rm -f "$tmp_script"
+            display_error "下载新脚本失败" "已保留原脚本，备份位于 $backup_path。"
+            return 1
+        fi
+    fi
+
+    if ! grep -q '^CURRENT_VERSION=' "$tmp_script" || ! bash -n "$tmp_script"; then
+        rm -f "$tmp_script"
+        cp -a "$backup_path" "$resolved_script" >/dev/null 2>&1 || true
+        display_error "下载的新脚本校验失败，已自动回滚" "请稍后重试或手动检查下载源。"
+        return 1
+    fi
+
+    if ! cp -a "$tmp_script" "$resolved_script"; then
+        cp -a "$backup_path" "$resolved_script" >/dev/null 2>&1 || true
+        rm -f "$tmp_script"
+        display_error "替换脚本失败，已尝试自动回滚" "备份文件: $backup_path"
+        return 1
+    fi
+    chmod +x "$resolved_script" >/dev/null 2>&1 || true
+    rm -f "$tmp_script"
+
+    display_success "本地脚本更新完成" "备份文件: $backup_path；请重新运行脚本以加载新版本。"
+}
+
+pve_tools_local_uninstall() {
+    local current_script resolved_script clean_cron delete_targets=()
+    current_script="${BASH_SOURCE[0]}"
+    resolved_script="$(readlink -f "$current_script" 2>/dev/null || realpath "$current_script" 2>/dev/null || echo "$current_script")"
+
+    clear
+    show_menu_header "本地脚本快捷卸载"
+    echo -e "${RED}将删除 PVE-Tools 本地脚本及脚本产生的日志/备份/导出目录。${NC}"
+    echo -e "${YELLOW}不会删除 PVE 自身软件包、VM 磁盘或系统存储配置。${NC}"
+    echo "$UI_DIVIDER"
+
+    [[ -f "$resolved_script" ]] && delete_targets+=("$resolved_script")
+    [[ -f "/var/log/pve-tools.log" ]] && delete_targets+=("/var/log/pve-tools.log")
+    [[ -d "/var/backups/pve-tools" ]] && delete_targets+=("/var/backups/pve-tools/")
+    [[ -d "/var/lib/pve-tools" ]] && delete_targets+=("/var/lib/pve-tools/")
+
+    if [[ -f "$VM_BACKUP_CRON_FILE" ]]; then
+        read -p "是否同时清理 VM 定时备份任务 ${VM_BACKUP_CRON_FILE}？(yes/no) [no]: " clean_cron
+        clean_cron="${clean_cron:-no}"
+        if [[ "$clean_cron" == "yes" || "$clean_cron" == "YES" ]]; then
+            delete_targets+=("$VM_BACKUP_CRON_FILE")
+        fi
+    fi
+
+    if (( ${#delete_targets[@]} == 0 )); then
+        log_warn "未发现可删除的 PVE-Tools 本地文件。"
+        return 0
+    fi
+
+    echo -e "${CYAN}将删除以下文件/目录:${NC}"
+    printf '  - %s\n' "${delete_targets[@]}"
+    echo "$UI_DIVIDER"
+
+    if ! confirm_high_risk_action "卸载 PVE-Tools 本地脚本及关联文件" "会永久删除上方列出的脚本、日志、备份和导出目录。" "误删备份目录会丢失脚本自动备份的历史配置副本；删除 cron 会停止后续定时备份。" "请确认已经导出仍需保留的备份/配置文件，并确认删除清单只包含 PVE-Tools 文件。" "UNINSTALL"; then
+        return 0
+    fi
+
+    local target
+    for target in "${delete_targets[@]}"; do
+        if [[ -d "${target%/}" ]]; then
+            rm -rf -- "${target%/}"
+            echo -e "${GREEN}已删除目录:${NC} ${target%/}"
+        elif [[ -e "$target" ]]; then
+            rm -f -- "$target"
+            echo -e "${GREEN}已删除文件:${NC} $target"
+        fi
+    done
+
+    if [[ "$clean_cron" == "yes" || "$clean_cron" == "YES" ]]; then
+        systemctl restart cron 2>/dev/null || service cron restart 2>/dev/null || true
+    fi
+
+    echo -e "${GREEN}卸载完成。当前脚本文件如已删除，本次会话结束后请直接退出。${NC}"
+}
+
+security_ssh_service_name() {
+    local service
+
+    for service in ssh.service sshd.service ssh; do
+        if systemctl list-unit-files "$service" >/dev/null 2>&1 || systemctl status "$service" >/dev/null 2>&1; then
+            echo "${service%.service}"
+            return 0
+        fi
+    done
+    echo "ssh"
+}
+
+security_sshd_effective_option() {
+    local key="$1"
+    local lower_key
+    lower_key="$(echo "$key" | tr 'A-Z' 'a-z')"
+
+    if command -v sshd >/dev/null 2>&1; then
+        sshd -T 2>/dev/null | awk -v key="$lower_key" '$1 == key {print $2; exit}'
+    fi
+}
+
+security_root_authorized_keys_ready() {
+    local auth_file="/root/.ssh/authorized_keys"
+
+    [[ -f "$auth_file" ]] || return 1
+    grep -Ev '^[[:space:]]*(#|$)' "$auth_file" >/dev/null 2>&1
+}
+
+security_validate_ssh_port() {
+    local port="$1"
+
+    if [[ ! "$port" =~ ^[0-9]+$ ]] || (( port < 1024 || port > 65535 )); then
+        display_error "SSH 端口不合法: $port" "请使用 1024-65535 之间的高位端口。"
+        return 1
+    fi
+    if (( port == 8006 )); then
+        display_error "端口 8006 是 PVE Web UI 常用端口" "请换一个端口。"
+        return 1
+    fi
+}
+
+security_random_ssh_port() {
+    local port
+
+    if command -v shuf >/dev/null 2>&1; then
+        for _ in {1..20}; do
+            port="$(shuf -i 20000-60999 -n 1)"
+            if ! ss -ltn 2>/dev/null | awk '{print $4}' | grep -Eq "[:.]${port}$"; then
+                echo "$port"
+                return 0
+            fi
+        done
+    fi
+    echo "22222"
+}
+
+security_ensure_sshd_include() {
+    local config_file="/etc/ssh/sshd_config"
+
+    if ! grep -Eiq '^[[:space:]]*Include[[:space:]]+/etc/ssh/sshd_config\.d/\*\.conf' "$config_file" 2>/dev/null; then
+        local tmp
+        tmp="$(mktemp)" || return 1
+        {
+            echo "Include /etc/ssh/sshd_config.d/*.conf"
+            cat "$config_file"
+        } > "$tmp"
+        cat "$tmp" > "$config_file"
+        rm -f "$tmp"
+    fi
+}
+
+security_comment_global_sshd_directives() {
+    local config_file="/etc/ssh/sshd_config"
+    local tmp
+
+    tmp="$(mktemp)" || return 1
+    awk '
+        BEGIN {
+            in_match = 0
+            keys["port"] = 1
+            keys["passwordauthentication"] = 1
+            keys["kbdinteractiveauthentication"] = 1
+            keys["challengeresponseauthentication"] = 1
+            keys["pubkeyauthentication"] = 1
+            keys["permitemptypasswords"] = 1
+        }
+        /^[[:space:]]*Match[[:space:]]/ { in_match = 1 }
+        {
+            line = $0
+            probe = line
+            sub(/^[[:space:]]*/, "", probe)
+            split(probe, parts, /[[:space:]]+/)
+            key = tolower(parts[1])
+            if (!in_match && line !~ /^[[:space:]]*#/ && keys[key]) {
+                print "# PVE-Tools disabled global duplicate: " line
+            } else {
+                print line
+            }
+        }
+    ' "$config_file" > "$tmp" || {
+        rm -f "$tmp"
+        return 1
+    }
+    cat "$tmp" > "$config_file"
+    rm -f "$tmp"
+}
+
+security_write_sshd_hardening_dropin() {
+    local port="$1"
+    local dropin_dir="/etc/ssh/sshd_config.d"
+    local dropin_file="${dropin_dir}/99-pve-tools-hardening.conf"
+
+    mkdir -p "$dropin_dir" || return 1
+    cat > "$dropin_file" <<EOF
+# Managed by PVE-Tools.
+# Keep console or out-of-band access available before changing SSH policy.
+Port $port
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+ChallengeResponseAuthentication no
+PermitEmptyPasswords no
+EOF
+}
+
+security_write_fail2ban_sshd_jail() {
+    local port="$1"
+    local maxretry="$2"
+    local bantime="$3"
+    local findtime="$4"
+    local jail_dir="/etc/fail2ban/jail.d"
+    local jail_file="${jail_dir}/pve-tools-sshd.conf"
+
+    mkdir -p "$jail_dir" || return 1
+    cat > "$jail_file" <<EOF
+# Managed by PVE-Tools.
+[sshd]
+enabled = true
+port = $port
+maxretry = $maxretry
+bantime = $bantime
+findtime = $findtime
+EOF
+}
+
+security_install_fail2ban_if_needed() {
+    if command -v fail2ban-client >/dev/null 2>&1; then
+        return 0
+    fi
+
+    log_warn "未检测到 fail2ban，准备通过 apt 安装。"
+    if ! apt-get update; then
+        display_error "apt-get update 失败" "请检查软件源和网络后重试。"
+        return 1
+    fi
+    if ! apt-get install -y fail2ban; then
+        display_error "fail2ban 安装失败" "请检查软件源和网络后重试。"
+        return 1
+    fi
+}
+
+security_restore_hardening_backups() {
+    local ssh_backup="$1"
+    local config_file="$2"
+    local dropin_backup="$3"
+    local dropin_file="$4"
+    local jail_backup="$5"
+    local jail_file="$6"
+
+    [[ -n "$ssh_backup" && -f "$ssh_backup" ]] && cp -a "$ssh_backup" "$config_file" >/dev/null 2>&1 || true
+    if [[ -n "$dropin_backup" && -f "$dropin_backup" ]]; then
+        cp -a "$dropin_backup" "$dropin_file" >/dev/null 2>&1 || true
+    else
+        rm -f "$dropin_file" >/dev/null 2>&1 || true
+    fi
+    if [[ -n "$jail_backup" && -f "$jail_backup" ]]; then
+        cp -a "$jail_backup" "$jail_file" >/dev/null 2>&1 || true
+    else
+        rm -f "$jail_file" >/dev/null 2>&1 || true
+    fi
+}
+
+security_ssh_hardening() {
+    block_non_pve9_destructive "SSH 一键加固" || return 1
+
+    local current_port new_port maxretry bantime findtime ssh_service ssh_backup="" jail_backup="" dropin_backup=""
+    local config_file="/etc/ssh/sshd_config"
+    local jail_file="/etc/fail2ban/jail.d/pve-tools-sshd.conf"
+    local dropin_file="/etc/ssh/sshd_config.d/99-pve-tools-hardening.conf"
+
+    if [[ ! -f "$config_file" ]] || ! command -v sshd >/dev/null 2>&1; then
+        display_error "未找到 OpenSSH Server 配置" "请确认 openssh-server 已安装。"
+        return 1
+    fi
+
+    current_port="$(security_sshd_effective_option port)"
+    current_port="${current_port:-22}"
+
+    clear
+    show_menu_header "SSH 一键加固"
+    echo -e "${RED}重要:${NC} 禁用密码登录前，必须确认 SSH 密钥登录可用，或你有 PVE 控制台/带外管理方式。"
+    echo -e "${CYAN}当前 SSH 端口:${NC} $current_port"
+    echo -e "${CYAN}当前连接:${NC} ${SSH_CONNECTION:-未检测到 SSH_CONNECTION}"
+    if security_root_authorized_keys_ready; then
+        echo -e "${GREEN}检测到 /root/.ssh/authorized_keys 中存在公钥。${NC}"
+    else
+        echo -e "${RED}未检测到 root 公钥。继续后可能无法再通过密码 SSH 登录。${NC}"
+    fi
+    echo "$UI_DIVIDER"
+
+    read -p "请输入新的 SSH 端口（留空随机生成高位端口）: " new_port
+    new_port="${new_port:-$(security_random_ssh_port)}"
+    security_validate_ssh_port "$new_port" || return 1
+
+    read -p "fail2ban 最大失败次数 [5]: " maxretry
+    maxretry="${maxretry:-5}"
+    [[ "$maxretry" =~ ^[0-9]+$ && "$maxretry" -ge 1 ]] || {
+        display_error "最大失败次数必须是正整数"
+        return 1
+    }
+    read -p "fail2ban 封禁时间 [1h]: " bantime
+    bantime="${bantime:-1h}"
+    [[ "$bantime" =~ ^[0-9]+[smhd]?$ ]] || {
+        display_error "封禁时间格式不合法" "示例: 3600 或 1h"
+        return 1
+    }
+    read -p "fail2ban 检测时间窗口 [10m]: " findtime
+    findtime="${findtime:-10m}"
+    [[ "$findtime" =~ ^[0-9]+[smhd]?$ ]] || {
+        display_error "检测窗口格式不合法" "示例: 600 或 10m"
+        return 1
+    }
+
+    clear
+    show_menu_header "SSH 加固确认"
+    echo -e "${CYAN}新 SSH 端口:${NC} $new_port"
+    echo -e "${CYAN}密码登录:${NC} 禁用"
+    echo -e "${CYAN}密钥登录:${NC} 启用"
+    echo -e "${CYAN}fail2ban:${NC} maxretry=$maxretry, bantime=$bantime, findtime=$findtime"
+    echo -e "${YELLOW}执行后请使用:${NC} ssh -p $new_port root@<PVE-IP>"
+    echo -e "${YELLOW}如启用 PVE/外部防火墙，请同步放行 TCP $new_port，并确认 8006 Web UI 或控制台可用。${NC}"
+    echo "$UI_DIVIDER"
+
+    if ! confirm_high_risk_action "修改 SSH 端口、禁用密码登录并配置 fail2ban" "错误配置可能导致 SSH 无法连接；未准备密钥时会失去密码登录入口。" "当前远程会话可能在 sshd 重启后无法重新连接，需要通过控制台修复。" "请确认密钥登录已测试成功，控制台/带外访问可用，并已记录原端口 $current_port。" "SSH-HARDEN"; then
+        return 0
+    fi
+
+    backup_file "$config_file" ssh_backup >/dev/null 2>&1 || return 1
+    [[ -f "$jail_file" ]] && backup_file "$jail_file" jail_backup >/dev/null 2>&1 || true
+    [[ -f "$dropin_file" ]] && backup_file "$dropin_file" dropin_backup >/dev/null 2>&1 || true
+
+    if ! security_install_fail2ban_if_needed; then
+        return 1
+    fi
+
+    if ! security_ensure_sshd_include || ! security_comment_global_sshd_directives || ! security_write_sshd_hardening_dropin "$new_port"; then
+        security_restore_hardening_backups "$ssh_backup" "$config_file" "$dropin_backup" "$dropin_file" "$jail_backup" "$jail_file"
+        display_error "写入 SSH 配置失败，已尝试回滚" "备份文件: $ssh_backup"
+        return 1
+    fi
+
+    if ! sshd -t -f "$config_file" 2>/tmp/pve-tools-sshd-test.log; then
+        security_restore_hardening_backups "$ssh_backup" "$config_file" "$dropin_backup" "$dropin_file" "$jail_backup" "$jail_file"
+        sed 's/^/  /' /tmp/pve-tools-sshd-test.log 2>/dev/null || true
+        display_error "sshd 配置语法检查失败，已自动回滚" "请检查 $config_file。"
+        return 1
+    fi
+
+    if ! security_write_fail2ban_sshd_jail "$new_port" "$maxretry" "$bantime" "$findtime"; then
+        security_restore_hardening_backups "$ssh_backup" "$config_file" "$dropin_backup" "$dropin_file" "$jail_backup" "$jail_file"
+        display_error "写入 fail2ban 配置失败，已尝试回滚 SSH/fail2ban 配置" "请人工检查 $config_file 和 $jail_file。"
+        return 1
+    fi
+
+    ssh_service="$(security_ssh_service_name)"
+    if ! systemctl restart "$ssh_service" 2>/dev/null; then
+        security_restore_hardening_backups "$ssh_backup" "$config_file" "$dropin_backup" "$dropin_file" "$jail_backup" "$jail_file"
+        systemctl restart "$ssh_service" 2>/dev/null || true
+        display_error "SSH 服务重启失败，已尝试回滚" "请通过控制台检查 SSH 状态。"
+        return 1
+    fi
+
+    if ! systemctl enable --now fail2ban >/dev/null 2>&1 && ! systemctl restart fail2ban >/dev/null 2>&1; then
+        security_restore_hardening_backups "$ssh_backup" "$config_file" "$dropin_backup" "$dropin_file" "$jail_backup" "$jail_file"
+        systemctl restart "$ssh_service" 2>/dev/null || true
+        display_error "fail2ban 启动失败，已尝试回滚 SSH/fail2ban 配置" "请检查 systemctl status fail2ban。"
+        return 1
+    fi
+    if command -v fail2ban-client >/dev/null 2>&1; then
+        fail2ban-client status sshd >/dev/null 2>&1 || log_warn "fail2ban sshd jail 暂未进入运行状态，请稍后用 fail2ban-client status sshd 检查。"
+    fi
+
+    display_success "SSH 加固已完成" "新连接命令: ssh -p $new_port root@<PVE-IP>；请立即新开终端验证后再关闭当前会话。"
+}
+
+security_report_item() {
+    local level="$1"
+    local title="$2"
+    local detail="$3"
+    local advice="$4"
+    local color="$GREEN"
+
+    case "$level" in
+        高) color="$RED"; SECURITY_HIGH_COUNT=$((SECURITY_HIGH_COUNT + 1)) ;;
+        中) color="$YELLOW"; SECURITY_MEDIUM_COUNT=$((SECURITY_MEDIUM_COUNT + 1)) ;;
+        低) color="$CYAN"; SECURITY_LOW_COUNT=$((SECURITY_LOW_COUNT + 1)) ;;
+    esac
+
+    echo -e "${color}[${level}]${NC} ${title}"
+    echo "  状态: $detail"
+    echo "  建议: $advice"
+    echo
+}
+
+security_pve_firewall_enabled() {
+    local file="$1"
+
+    [[ -f "$file" ]] || return 1
+    awk '
+        /^\[OPTIONS\]/ { in_options = 1; next }
+        /^\[/ { in_options = 0 }
+        in_options && $1 == "enable:" && $2 == "1" { found = 1 }
+        END { exit found ? 0 : 1 }
+    ' "$file"
+}
+
+security_list_public_listeners() {
+    if ! command -v ss >/dev/null 2>&1; then
+        return 0
+    fi
+
+    ss -ltn 2>/dev/null | awk 'NR>1 {
+        addr=$4
+        n=split(addr, parts, ":")
+        port=parts[n]
+        if (addr ~ /^0\.0\.0\.0:/ || addr ~ /^\[::\]:/ || addr ~ /^\*:/ || addr ~ /^:::/) {
+            print port "|" addr
+        }
+    }' | sort -u
+}
+
+security_risk_check() {
+    local ssh_port password_auth empty_passwords fail2ban_state cluster_fw node_fw dangerous_ports upgradable uid0_extra loose_files
+
+    SECURITY_HIGH_COUNT=0
+    SECURITY_MEDIUM_COUNT=0
+    SECURITY_LOW_COUNT=0
+
+    clear
+    show_menu_header "安全风险检查"
+    echo -e "${YELLOW}本功能只读取配置和状态，不修改系统。${NC}"
+    echo "$UI_DIVIDER"
+
+    ssh_port="$(security_sshd_effective_option port)"
+    ssh_port="${ssh_port:-unknown}"
+    password_auth="$(security_sshd_effective_option passwordauthentication)"
+    password_auth="${password_auth:-unknown}"
+    if [[ "$ssh_port" == "22" ]]; then
+        security_report_item "中" "SSH 使用默认端口 22" "当前端口: $ssh_port" "可进入本菜单的 SSH 一键加固，改为高位端口并同步防火墙规则。"
+    else
+        security_report_item "低" "SSH 端口检查" "当前端口: $ssh_port" "保持资产台账和防火墙规则同步。"
+    fi
+
+    if [[ "$password_auth" == "yes" ]]; then
+        security_report_item "高" "SSH 允许密码登录" "PasswordAuthentication: yes" "确认密钥登录可用后，使用 SSH 一键加固禁用密码登录。"
+    else
+        security_report_item "低" "SSH 密码登录检查" "PasswordAuthentication: $password_auth" "定期检查 authorized_keys 和账号权限。"
+    fi
+
+    fail2ban_state="$(systemctl is-active fail2ban 2>/dev/null || echo inactive)"
+    if [[ "$fail2ban_state" != "active" ]]; then
+        security_report_item "中" "fail2ban 未运行" "状态: $fail2ban_state" "安装并启用 fail2ban，至少保护 sshd jail。"
+    else
+        security_report_item "低" "fail2ban 状态" "状态: active" "可用 fail2ban-client status sshd 复查封禁策略。"
+    fi
+
+    if security_pve_firewall_enabled "$PVE_CLUSTER_FIREWALL_FILE"; then
+        cluster_fw="enabled"
+    else
+        cluster_fw="disabled"
+    fi
+    node_fw="/etc/pve/nodes/$(hostname)/host.fw"
+    if security_pve_firewall_enabled "$node_fw"; then
+        node_fw="enabled"
+    else
+        node_fw="disabled"
+    fi
+    if [[ "$cluster_fw" != "enabled" || "$node_fw" != "enabled" ]]; then
+        security_report_item "中" "PVE 防火墙未完全启用" "datacenter=$cluster_fw, node=$node_fw" "进入宿主机网络与防火墙菜单，审查规则后启用数据中心和节点防火墙。"
+    else
+        security_report_item "低" "PVE 防火墙状态" "datacenter=enabled, node=enabled" "继续保持规则最小开放。"
+    fi
+
+    dangerous_ports="$(security_list_public_listeners | awk -F'|' '$1 ~ /^(21|23|25|111|139|445|3306|5432|6379|9200|9300)$/ || ($1 >= 5900 && $1 <= 5999) {print $0}')"
+    if [[ -n "$dangerous_ports" ]]; then
+        security_report_item "中" "检测到常见高风险端口对外监听" "$(echo "$dangerous_ports" | tr '\n' ' ')" "确认是否确需暴露；不需要时关闭服务或用防火墙限制来源。"
+    else
+        security_report_item "低" "服务暴露检查" "未发现常见高风险端口对外监听" "仍建议人工审查 ss -ltnup 输出。"
+    fi
+
+    upgradable="$(apt list --upgradable 2>/dev/null | awk 'NR>1 {print}' | head -n 10)"
+    if [[ -n "$upgradable" ]]; then
+        security_report_item "中" "存在待升级软件包" "$(echo "$upgradable" | wc -l) 个以上待升级条目（仅展示前 10 个）" "在维护窗口执行 apt update && apt upgrade，并重启到新内核后复查。"
+        echo "$upgradable" | sed 's/^/    /'
+        echo
+    else
+        security_report_item "低" "系统更新检查" "当前 apt 缓存未显示待升级包" "该检查不主动刷新 apt 缓存；建议定期运行 apt update。"
+    fi
+
+    empty_passwords="$(awk -F: '$2 == "" {print $1}' /etc/shadow 2>/dev/null | tr '\n' ' ')"
+    uid0_extra="$(awk -F: '$3 == 0 && $1 != "root" {print $1}' /etc/passwd 2>/dev/null | tr '\n' ' ')"
+    if [[ -n "$empty_passwords" || -n "$uid0_extra" ]]; then
+        security_report_item "高" "账户风险" "空密码账户: ${empty_passwords:-无}; 额外 UID0: ${uid0_extra:-无}" "立即锁定异常账户或设置强密码，并审查 /etc/passwd 与 /etc/shadow。"
+    else
+        security_report_item "低" "账户风险检查" "未发现空密码账户或额外 UID 0 账户" "继续保持最小账号集。"
+    fi
+
+    loose_files=""
+    for file in /etc/ssh/sshd_config /etc/shadow /etc/pve/storage.cfg "$PVE_CLUSTER_FIREWALL_FILE"; do
+        [[ -e "$file" ]] || continue
+        if [[ -w "$file" && ! -O "$file" ]]; then
+            loose_files+="$file(当前用户可写但非属主) "
+        fi
+        if find "$file" -maxdepth 0 -perm /022 2>/dev/null | grep -q .; then
+            loose_files+="$file(组/其他可写) "
+        fi
+    done
+    if [[ -n "$loose_files" ]]; then
+        security_report_item "高" "关键配置文件权限过宽" "$loose_files" "恢复 root/系统默认属主和最小写权限，避免普通用户改写关键配置。"
+    else
+        security_report_item "低" "关键文件权限检查" "未发现组/其他可写的关键配置文件" "后续变更后继续复查。"
+    fi
+
+    echo "$UI_DIVIDER"
+    echo -e "${CYAN}汇总:${NC} 高风险 $SECURITY_HIGH_COUNT / 中风险 $SECURITY_MEDIUM_COUNT / 低风险 $SECURITY_LOW_COUNT"
+    echo -e "${YELLOW}提示:${NC} 该报告不会自动修复系统；需要改配置时请从对应菜单进入并确认风险。"
+}
+
+security_center_menu() {
+    while true; do
+        clear
+        show_menu_header "安全中心"
+        show_menu_option "1" "安全风险检查 ${CYAN}(只读报告)${NC}"
+        show_menu_option "2" "SSH 一键加固 ${CYAN}(端口/密钥/fail2ban)${NC}"
+        show_menu_option "0" "返回"
+        show_menu_footer
+
+        local choice
+        read -p "请选择操作 [0-2]: " choice
+        case "$choice" in
+            1) security_risk_check ;;
+            2) security_ssh_hardening ;;
+            0) return ;;
+            *) log_error "无效选择" ;;
+        esac
+        pause_function
+    done
 }
 
 # 温度监控管理菜单
@@ -13062,14 +14640,6 @@ amd_igpu_management_menu() {
     done
 }
 
-go_version() {
-    echo -e "${CYAN}当前 Go 版本暂未开发完成，敬请期待后续更新。${NC}"
-    echo -e "按任意键回到主菜单..."
-    read -n 1 -s
-    return 
-
-}
-
 # 主程序
 main() {
     check_root
@@ -13087,14 +14657,12 @@ main() {
         log_warn "离线模式下将跳过更新检查与镜像自动策略。"
     else
         check_update
-        select_mirror
     fi
     
     while true; do
 
         show_menu
-        read -n 2 choice
-        echo
+        read -r choice
         echo
         
         case $choice in
@@ -13123,10 +14691,10 @@ main() {
                 menu_tools_about
                 ;;
             9)
-                copy_fail_management_menu
+                security_center_menu
                 ;;
             10)
-                go_version
+                third_party_tools_menu
                 ;;
             0)
                 echo "感谢使用,谢谢喵"
@@ -13135,7 +14703,7 @@ main() {
                 ;;
             *)
                 log_error "哎呀，这个选项不存在呢"
-                log_warn "请输入 0-9 之间的数字"
+                log_warn "请输入 0-10 之间的数字"
                 ;;
         esac
         

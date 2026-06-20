@@ -1,0 +1,4 @@
+*.sh text eol=lf
+PVE-Tools.sh text eol=lf
+Tools/*.sh text eol=lf
+Modules/*.sh text eol=lf
