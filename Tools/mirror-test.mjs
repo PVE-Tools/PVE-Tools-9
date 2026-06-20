@@ -110,18 +110,47 @@ function parseArgs() {
         output: null,
         verbose: false,
     };
+
+    const fail = (message) => {
+        console.error(`参数错误: ${message}`);
+        console.error("使用 --help 查看用法。");
+        process.exit(1);
+    };
+    const readValue = (index, option, { allowDashValue = false } = {}) => {
+        const value = args[index + 1];
+        if (value === undefined || (!allowDashValue && value.startsWith("-"))) {
+            fail(`${option} 需要提供参数值`);
+        }
+        return value;
+    };
+
     for (let i = 0; i < args.length; i++) {
         switch (args[i]) {
-            case "--timeout":
-                opts.timeout = Number(args[++i]) || 8000;
+            case "--timeout": {
+                const value = Number(readValue(i, args[i], { allowDashValue: true }));
+                if (!Number.isFinite(value) || value <= 0) {
+                    fail("--timeout 必须是正数");
+                }
+                opts.timeout = value;
+                i++;
                 break;
-            case "--concurrency":
-                opts.concurrency = Number(args[++i]) || 6;
+            }
+            case "--concurrency": {
+                const value = Number(readValue(i, args[i], { allowDashValue: true }));
+                if (!Number.isInteger(value) || value <= 0) {
+                    fail("--concurrency 必须是正整数");
+                }
+                opts.concurrency = value;
+                i++;
                 break;
+            }
             case "--output":
-            case "-o":
-                opts.output = args[++i];
+            case "-o": {
+                const value = readValue(i, args[i]);
+                opts.output = value;
+                i++;
                 break;
+            }
             case "--verbose":
             case "-v":
                 opts.verbose = true;
@@ -137,6 +166,8 @@ function parseArgs() {
   --verbose, -v       显示每个探测请求的详细信息
   --help, -h          显示帮助`);
                 process.exit(0);
+            default:
+                fail(`未知参数 ${args[i]}`);
         }
     }
     return opts;
@@ -167,17 +198,20 @@ async function probeUrl(url, timeoutMs, method = "HEAD") {
 // 带退避的重试探测（网络抖动时重试一次）
 // fallbackGet: HEAD 失败后自动用 GET 重试（目录页可能禁用 HEAD）
 async function probeWithRetry(url, timeoutMs, { retries = 1, fallbackGet = false } = {}) {
+    let lastResult = { status: 0, ok: false };
     for (let attempt = 0; attempt <= retries; attempt++) {
         let result = await probeUrl(url, timeoutMs, "HEAD");
+        lastResult = result;
         if (result.ok) return result;
         // HEAD 失败且启用 GET 回退时，用 GET 再试一次
         if (fallbackGet && attempt === retries) {
             result = await probeUrl(url, timeoutMs, "GET");
+            lastResult = result;
             if (result.ok) return result;
         }
         if (attempt < retries) await sleep(300);
     }
-    return { status: 0, ok: false };
+    return lastResult;
 }
 
 // ==================== 并发控制 ====================

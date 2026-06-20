@@ -12,8 +12,8 @@
 
 
 # 版本信息
-CURRENT_VERSION="8.8.8"
-BUILD_NICKNAME="Coluccis"
+CURRENT_VERSION="9.0.0"
+BUILD_NICKNAME="Evanescia"
 VERSION_FILE_URL="https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/VERSION"
 UPDATE_FILE_URL="https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/UPDATE"
 PVE_TOOLS_SCRIPT_URL="https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/PVE-Tools.sh"
