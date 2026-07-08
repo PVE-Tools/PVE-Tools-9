@@ -183,13 +183,19 @@ cpu_add() {
         else
             local modules_backed_up=0
             for i in $drivers; do
-                modprobe $i
-                if ! grep -qw "$i" /etc/modules; then
-                    if [[ "$modules_backed_up" -eq 0 ]]; then
-                        backup_file "/etc/modules"
-                        modules_backed_up=1
+                if modprobe "$i"; then
+                    if ! grep -qw "$i" /etc/modules; then
+                        if [[ "$modules_backed_up" -eq 0 ]]; then
+                            if ! backup_file "/etc/modules"; then
+                                log_error "无法备份 /etc/modules，跳过驱动持久化"
+                                break
+                            fi
+                            modules_backed_up=1
+                        fi
+                        echo "$i" >> /etc/modules
                     fi
-                    echo "$i" >> /etc/modules
+                else
+                    log_warn "modprobe $i 失败，跳过该驱动"
                 fi
             done
             sensors
@@ -244,7 +250,11 @@ cpu_add() {
     fi
 
     # 生成系统变量 (参考 PVE 8 脚本的改进实现)
-    tmpf="$(mktemp)"
+    local tmpf
+    tmpf="$(mktemp)" || {
+        log_error "无法创建临时文件"
+        return 1
+    }
     cat > $tmpf << 'EOF'
 
 #modbyshowtempfreq
@@ -381,7 +391,11 @@ EOF
     rm $tmpf
 
     ###################  修改pvemanagerlib.js   ##########################
-    tmpf="$(mktemp)"
+    local tmpf
+    tmpf="$(mktemp)" || {
+        log_error "无法创建临时文件"
+        return 1
+    }
     cat > $tmpf << 'EOF'
 
 //modbyshowtempfreq

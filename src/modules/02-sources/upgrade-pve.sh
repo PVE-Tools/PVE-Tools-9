@@ -88,8 +88,12 @@ pve8_to_pve9_upgrade() {
         log_error "pve8to9 检查发现严重错误!! 一般是软件包冲突或是其他报错!建议修复后再进行升级！"
         echo -e "${YELLOW}升级检查结果详情：${NC}"
         cat /tmp/pve8to9_check.log
-        read -p "您确定要忽略这些错误并继续升级吗？这不是在开玩笑！(y/N): " force_upgrade
-        if [[ "$force_upgrade" != "y" && "$force_upgrade" != "Y" ]]; then
+        if ! confirm_high_risk_action \
+            "忽略 pve8to9 严重错误并强制升级" \
+            "pve8to9 检测到 FAIL 级别错误，忽略可能导致升级失败、系统无法启动或数据丢失。" \
+            "将跳过 pve8to9 检查并继续执行 PVE 8.x → 9.x 升级流程。" \
+            "这不是在开玩笑！请确保已完整备份并有回滚方案。" \
+            "FORCE-UPGRADE"; then
             log_info "由于存在严重错误，已取消升级操作...返回主界面"
             return 1
         fi
