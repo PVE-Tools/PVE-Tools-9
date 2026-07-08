@@ -43,3 +43,6 @@ _bmad/
 _bmad-output/
 
 test.txt
+
+# ignore docs
+Docs/
