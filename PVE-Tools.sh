@@ -124,6 +124,7 @@ pve_tools_entry_remote_files() {
         "src/modules/08-tools-about/self-update.sh"
         "src/modules/08-tools-about/sysinfo.sh"
         "src/modules/09-security/audit.sh"
+        "src/modules/09-security/cve-fix.sh"
         "src/modules/09-security/init.sh"
         "src/modules/09-security/ssh-hardening.sh"
         "src/modules/10-third-party/community.sh"
