@@ -62,7 +62,7 @@ jobs:
             
             **直接运行脚本 (推荐)**
             ```bash
-            bash -c "$(curl -fsSL https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/PVE-Tools.sh)"
+            bash <(curl -sSL https://pve.oowo.cc/PVE-Tools.sh)
             ```
           files: |
             dist/PVE-Tools.sh
