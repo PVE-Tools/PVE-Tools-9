@@ -3,7 +3,7 @@
 # Copyright (C) 2026 Ciriu Networks
 
 # 版本信息
-CURRENT_VERSION="9.0.0"
+CURRENT_VERSION="10.0.0-beta"
 BUILD_NICKNAME="Evanescia"
 VERSION_FILE_URL="https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/VERSION"
 UPDATE_FILE_URL="https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/UPDATE"
