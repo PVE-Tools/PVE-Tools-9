@@ -25,6 +25,9 @@ jobs:
           VERSION=${TAG#v}
           echo "TAG=$TAG" >> $GITHUB_OUTPUT
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build single script from modules
+        run: bash build.sh
           
       - name: Install shc
         run: |
@@ -34,7 +37,7 @@ jobs:
 
       - name: Compile script to binary
         run: |
-          shc -f PVE-Tools.sh -o pve-tools
+          shc -f dist/PVE-Tools.sh -o pve-tools
           chmod +x pve-tools
           
       - name: Generate release notes
@@ -81,7 +84,7 @@ jobs:
             ```
           files: |
             pve-tools
-            PVE-Tools.sh
+            dist/PVE-Tools.sh
           draft: false
           prerelease: false
         env:

@@ -1,95 +1,186 @@
 {
   "meta": {
     "project": "PVE-Tools-9",
-    "description": "Proxmox VE 9.x 一键运维脚本与文档站",
-    "version": "7.2.0",
+    "description": "Proxmox VE 9.x 模块化 Bash 运维工具集",
+    "version": "9.0.0",
     "license": "GPL-3.0",
-    "generated_at": "2026-04-28T20:59:34+08:00",
+    "generated_at": "2026-07-08T10:41:03+08:00",
     "generator": "claude-init 自适应架构师",
-    "truncated": false
+    "truncated": false,
+    "major_changes_since_last_scan": "项目完成模块化重构：430KB 单文件拆分为 lib/ (4文件) + src/modules/ (10子模块, 66文件)。新增 build.sh/dev.sh 构建系统。Web/ VitePress 文档站已移除。"
   },
   "scan_coverage": {
-    "estimated_total_files": 75,
-    "scanned_files": 62,
-    "coverage_percent": 82.7,
-    "skipped_by_ignore": 8,
-    "skipped_binary_large": 2,
-    "skipped_other": 3,
+    "estimated_total_files": 140,
+    "scanned_files": 80,
+    "coverage_percent": 57.1,
+    "skipped_by_ignore": 20,
+    "skipped_binary_large": 28,
+    "skipped_other": 12,
     "skip_reasons": {
       "binary_large": [
         "Modules/VGPU/libvgpu_unlock_rs_20230207_44d5bb3.so",
-        "Web/assets/images/Proxmox-Corporate-Brandguideline.pdf"
+        "images/ 下 27 个 PNG/JPG/SVG 文件（仅记录路径）",
+        "dist/PVE-Tools.sh（构建产物，已忽略）"
       ],
       "ignore_rules": [
-        "Web/bun.lock (类似 bun.lockb)",
-        "Web/.vitepress/dist/ (构建产物)",
-        "Web/.vitepress/cache/ (缓存)",
-        "node_modules/ (依赖)",
-        ".codebuddy/ (项目忽略)",
-        ".cache/ (缓存)",
-        ".spec-workflow/ (项目忽略)",
-        ".claude/ (项目忽略)"
+        "dist/ (构建产物)",
+        "node_modules/ (不存在于当前仓库)",
+        ".git/ (版本控制)",
+        "test.txt"
       ],
-      "too_large_full_read": [
-        "PVE-Tools.sh (430KB，使用分段读取，覆盖率约60%)"
+      "too_large_or_not_prioritized": [
+        "src/modules/ 下 ~56 个非 init.sh 文件（仅 init.sh 已读，实现文件通过重构计划文档交叉验证）",
+        "Tools/ 下 13 个 .sh 脚本（仅记录文件名，内容已在上次扫描中确认来自 tteck 社区）"
       ]
     }
   },
   "modules": [
     {
       "path": "/",
-      "name": "根模块 (主脚本)",
+      "name": "根模块 (入口脚本)",
       "language": "Bash",
       "claude_md": "CLAUDE.md",
-      "entry_points": ["PVE-Tools.sh"],
-      "interfaces": ["主菜单 (9个一级选项，多个二级/三级子菜单)"],
-      "dependencies": ["bash", "curl/wget", "qm/pct/pvesh (PVE CLI)"],
-      "data_models": ["VERSION文件", "legal_acceptance marker文件", "/var/lib/pve-tools/ 运行时数据"],
-      "tests": ["CI: shellcheck, bash -n, 版本一致性检查"],
+      "entry_points": ["PVE-Tools.sh (169行)", "build.sh", "dev.sh"],
+      "interfaces": [
+        "pve_tools_entry_source_tree() -- 本地模块加载",
+        "pve_tools_entry_prepare_remote_tree() -- 远程模块下载",
+        "main() -- 脚本主入口 (lib/runtime.sh)"
+      ],
+      "dependencies": ["bash", "curl/wget", "find", "sort"],
+      "data_models": ["VERSION", "legalese acceptance marker"],
+      "tests": ["CI: shellcheck, bash -n (入口+构建产物), 版本一致性检查"],
       "config_files": ["VERSION", "UPDATE"],
       "scanned_sections": [
-        "颜色系统 (lines 23-55)",
-        "日志函数 (lines 103-137)",
-        "许可与风险体系 (lines 209-241)",
-        "配置文件管理 (lines 244-331)",
-        "GRUB 管理 (lines 333-410)",
-        "主菜单 (lines 5480-5499)",
-        "VM 高级运维 (lines 6065+)",
-        "宿主机网络 (lines 7873+)"
+        "PVE-Tools.sh 完整读取 (169行)",
+        "build.sh 完整读取 (50行)",
+        "dev.sh 完整读取 (22行)",
+        "AGENTS.md 完整读取"
       ],
       "scan_gaps": [
-        "RDM/NVMe 直通完整逻辑 (lines 1954-2240 仅部分阅读)",
-        "引导配置辅助 (lines 2669+ 仅部分阅读)",
-        "所有子菜单实现函数体 (数量庞大，仅了解入口)",
-        "GPU 直通各子功能详细实现",
-        "存储/磁盘维护二级菜单实现"
-      ],
-      "coverage": "medium"
-    },
-    {
-      "path": "Web/",
-      "name": "Web 文档站",
-      "language": "TypeScript/Vue/Markdown",
-      "claude_md": "Web/CLAUDE.md",
-      "entry_points": ["Web/index.md", "Web/.vitepress/config.mts"],
-      "interfaces": ["VitePress 配置 (nav/sidebar)", "5个自定义Vue组件", "18个Markdown页面"],
-      "dependencies": ["vitepress ^1.6.4", "vue ^3.5.27", "lucide-vue-next ^0.563.0", "bun"],
-      "data_models": ["todo-data.json (开发计划+时间线)"],
-      "tests": ["构建验证 (bun run build)"],
-      "config_files": ["package.json", "wrangler.jsonc", ".vitepress/config.mts"],
-      "scanned_files": [
-        "index.md", "guide.md", "features.md", "faq.md", "update.md",
-        "todo.md", "submit-plugin.md", "ula.md", "sponsor.md", "pay.md",
-        "config.mts", "theme/index.ts", "theme/custom.css",
-        "Announcement.vue", "CopyCodeBox.vue", "Giscus.vue",
-        "HomeFeaturesWithTimeline.vue", "TodoList.vue",
-        "package.json", "bun.lock", "wrangler.jsonc", "index.js",
-        "todo-data.json", "advanced/index.md"
-      ],
-      "scan_gaps": [
-        "advanced/ 下 10 篇 Markdown 教程详情（仅读取了索引，未逐篇阅读内容）"
+        "README.md / README_EN.md / REAMDE-JP.md 未读取（项目说明文档）",
+        "UPDATE 文件未读取",
+        "proxmoxlib.js 未读取（Proxmox Web UI 补丁）"
       ],
       "coverage": "high"
+    },
+    {
+      "path": "lib/",
+      "name": "基础设施层",
+      "language": "Bash",
+      "claude_md": "lib/CLAUDE.md",
+      "entry_points": ["config.sh", "core.sh", "network.sh", "runtime.sh"],
+      "interfaces": [
+        "config.sh -- 全局变量（版本/镜像/URL/路径）",
+        "core.sh -- 颜色/日志/UI/确认/备份/GRUB（28个函数）",
+        "network.sh -- 网络检测/镜像选择/横幅（21个函数）",
+        "runtime.sh -- root守卫/调试/PVE检测/main()（8个函数）"
+      ],
+      "dependencies": ["bash", "curl/wget", "pveversion (运行时)"],
+      "data_models": ["legal_acceptance marker 文件"],
+      "tests": ["CI: shellcheck, bash -n"],
+      "config_files": ["config.sh (全局变量定义)"],
+      "scanned_files": [
+        "config.sh 完整读取 (254行)",
+        "core.sh 完整读取 (507行)",
+        "network.sh 头部读取 (50行, 函数签名已确认)",
+        "runtime.sh 完整读取 (235行)"
+      ],
+      "scan_gaps": [
+        "network.sh 后半部分 (~170行未读，包含镜像选择UI函数体，但函数签名已从重构计划获取)"
+      ],
+      "coverage": "high"
+    },
+    {
+      "path": "src/modules/",
+      "name": "功能模块层",
+      "language": "Bash",
+      "claude_md": "src/CLAUDE.md",
+      "entry_points": ["各子模块的 init.sh"],
+      "interfaces": [
+        "10 个子模块的菜单入口函数",
+        "menu_optimization() / menu_sources_updates() / menu_boot_kernel() / ...",
+        "main() 中的 case 分发 (lib/runtime.sh)"
+      ],
+      "dependencies": ["lib/config.sh", "lib/core.sh", "lib/network.sh (部分模块)"],
+      "data_models": ["无独立数据模型，操作 PVE 系统配置"],
+      "tests": ["CI: shellcheck, bash -n (通过构建产物)"],
+      "config_files": [],
+      "sub_modules": [
+        {
+          "path": "src/modules/01-optimization/",
+          "files": 6,
+          "init_read": true,
+          "coverage": "medium",
+          "description": "日常优化与通知：弹窗/温度/电源/邮件"
+        },
+        {
+          "path": "src/modules/02-sources/",
+          "files": 4,
+          "init_read": true,
+          "coverage": "medium",
+          "description": "软件源与系统升级：换源/更新/PVE8->9升级"
+        },
+        {
+          "path": "src/modules/03-boot-kernel/",
+          "files": 3,
+          "init_read": true,
+          "coverage": "medium",
+          "description": "启动与内核管理：内核切换/清理/GRUB"
+        },
+        {
+          "path": "src/modules/04-gpu-passthrough/",
+          "files": 12,
+          "init_read": true,
+          "coverage": "medium",
+          "description": "硬件直通与显卡：Intel/AMD/NVIDIA GPU/RDM/NVMe",
+          "scan_gaps": ["11个非init.sh文件未逐文件读取，函数归属已通过重构计划文档交叉验证"]
+        },
+        {
+          "path": "src/modules/05-vm-container/",
+          "files": 15,
+          "init_read": true,
+          "coverage": "medium",
+          "description": "虚拟机运维与导入：备份/恢复/克隆/Cloud-Init/快照/磁盘/迁移",
+          "scan_gaps": ["14个非init.sh文件未逐文件读取，函数归属已通过重构计划文档交叉验证"]
+        },
+        {
+          "path": "src/modules/06-networking/",
+          "files": 10,
+          "init_read": true,
+          "coverage": "medium",
+          "description": "宿主机网络与防火墙：网桥/VLAN/Bond/MAC绑定/防火墙/IPv6",
+          "scan_gaps": ["9个非init.sh文件未逐文件读取，函数归属已通过重构计划文档交叉验证"]
+        },
+        {
+          "path": "src/modules/07-storage-disk/",
+          "files": 6,
+          "init_read": true,
+          "coverage": "medium",
+          "description": "存储与磁盘维护：查询/挂载/LVM/Ceph/Swap"
+        },
+        {
+          "path": "src/modules/08-tools-about/",
+          "files": 3,
+          "init_read": true,
+          "coverage": "high",
+          "description": "诊断工具与项目信息：系统信息/救砖/更新/卸载"
+        },
+        {
+          "path": "src/modules/09-security/",
+          "files": 3,
+          "init_read": true,
+          "coverage": "high",
+          "description": "安全中心：风险检查/SSH加固"
+        },
+        {
+          "path": "src/modules/10-third-party/",
+          "files": 4,
+          "init_read": true,
+          "coverage": "high",
+          "description": "第三方工具：插件市场/CoolerControl/社区脚本"
+        }
+      ],
+      "coverage": "medium"
     },
     {
       "path": "Tools/",
@@ -102,9 +193,9 @@
       "data_models": ["无持久化数据模型"],
       "tests": ["无CI覆盖，由tteck社区人工验证"],
       "config_files": ["Tools/README.md"],
-      "scanned_files": ["README.md"],
+      "scanned_files": ["README.md (上次扫描)", "CLAUDE.md (本次更新)"],
       "scan_gaps": [
-        "13个.sh脚本均未读取详细内容（仅记录文件名和来源）"
+        "13个.sh脚本均未读取详细内容（仅记录文件名和来源，未发生变化）"
       ],
       "coverage": "low"
     },
@@ -119,9 +210,9 @@
       "data_models": ["插件元信息 (name/author/version/github)"],
       "tests": ["无自动化测试"],
       "config_files": [],
-      "scanned_files": ["install-zsh.sh (前30行)"],
+      "scanned_files": ["install-zsh.sh (上次扫描前30行)", "CLAUDE.md (本次更新)"],
       "scan_gaps": [
-        "install-zsh.sh 完整实现 (仅读了前30行)",
+        "install-zsh.sh 完整实现 (未变化)",
         "VGPU/*.so 二进制文件 (仅记录路径)"
       ],
       "coverage": "low"
@@ -131,94 +222,137 @@
       "name": "补充文档",
       "language": "Markdown",
       "claude_md": null,
-      "entry_points": ["Docs/future-guide.md", "Docs/README-EN.md"],
-      "interfaces": ["2个 Markdown 文档"],
+      "entry_points": [
+        "Docs/重构计划-PVE-Tools模块化拆分.md",
+        "Docs/future-guide.md",
+        "Docs/README-EN.md"
+      ],
+      "interfaces": ["3个 Markdown 文档"],
       "dependencies": [],
       "data_models": [],
       "tests": [],
       "config_files": [],
-      "scanned_files": [],
+      "scanned_files": [
+        "重构计划-PVE-Tools模块化拆分.md (完整读取, 1362行 -- 关键架构文档)"
+      ],
       "scan_gaps": [
         "future-guide.md 和 README-EN.md 均未读取"
       ],
-      "coverage": "none"
+      "coverage": "medium"
     },
     {
       "path": ".github/",
       "name": "CI/CD 与社区",
       "language": "YAML",
-      "claude_md": null,
-      "entry_points": ["workflows/release.yml", "workflows/beta-release.yml", "workflows/pr-validation.yml"],
-      "interfaces": ["release流水线 (shc编译+GitHub Release)", "beta-release流水线", "PR验证 (shellcheck+版本检查+安全扫描)"],
-      "dependencies": ["GitHub Actions", "shc", "shellcheck"],
+      "claude_md": ".github/CLAUDE.md",
+      "entry_points": [
+        "workflows/release.yml",
+        "workflows/beta-release.yml",
+        "workflows/pr-validation.yml"
+      ],
+      "interfaces": [
+        "release流水线 (build.sh + shc编译 + GitHub Release)",
+        "beta-release流水线",
+        "PR验证 (shellcheck + bash -n + 版本检查 + 安全扫描)"
+      ],
+      "dependencies": ["GitHub Actions", "shc", "shellcheck", "build.sh"],
       "data_models": [],
       "tests": ["PR验证流水线自动执行"],
-      "config_files": ["FUNDING.yml", "ISSUE_TEMPLATE/*.yml"],
+      "config_files": ["FUNDING.yml", "ISSUE_TEMPLATE/config.yml"],
       "scanned_files": [
-        "release.yml (前60行)", "beta-release.yml (前40行)", "pr-validation.yml (前50行)"
+        "release.yml (前50行)",
+        "pr-validation.yml (前50行)",
+        "FUNDING.yml",
+        "5个 Issue 模板文件"
       ],
       "scan_gaps": [
-        "FUNDING.yml 未读取",
-        "4个 Issue 模板未读取"
+        "beta-release.yml 未读取",
+        "release.yml 后半部分 (release notes生成+上传逻辑)"
       ],
       "coverage": "medium"
+    },
+    {
+      "path": "images/",
+      "name": "截图与图片资源",
+      "language": "二进制 (PNG/JPG/SVG)",
+      "claude_md": null,
+      "entry_points": [],
+      "interfaces": ["27个图片文件，用于 README 和文档"],
+      "dependencies": [],
+      "data_models": [],
+      "tests": [],
+      "config_files": [],
+      "scanned_files": [],
+      "scan_gaps": ["全部为二进制图片，不读取内容"],
+      "coverage": "none (intentionally skipped)"
+    }
+  ],
+  "modules_removed_since_last_scan": [
+    {
+      "path": "Web/",
+      "reason": "VitePress 文档站已从仓库移除 (git log: 'Web文档站移除')，相关 CLAUDE.md 成为孤立文件"
     }
   ],
   "next_steps": {
     "priority": [
       {
-        "module": "根模块",
-        "action": "深度扫描 PVE-Tools.sh 未覆盖区域",
+        "module": "src/modules/04-gpu-passthrough",
+        "action": "逐文件扫描非 init.sh 实现文件",
         "paths": [
-          "RDM 裸磁盘映射完整实现 (约1954-2240行)",
-          "PCIe/NVMe 控制器直通 (约2240-2669行)",
-          "GPU 直通各子菜单 (Intel/NVIDIA/AMD)",
-          "存储与磁盘维护二级菜单",
-          "软件源与系统升级二级菜单",
-          "诊断工具与项目信息菜单"
+          "src/modules/04-gpu-passthrough/nvidia.sh",
+          "src/modules/04-gpu-passthrough/iommu.sh",
+          "src/modules/04-gpu-passthrough/controller.sh"
         ],
-        "reason": "主脚本是项目的核心，但目前仅覆盖了约60%的关键区域"
+        "reason": "GPU 直通是高风险功能域，且文件最多(12个)、内部依赖最复杂"
       },
       {
-        "module": "Tools",
-        "action": "抽样阅读代表性脚本",
+        "module": "src/modules/05-vm-container",
+        "action": "逐文件扫描非 init.sh 实现文件",
         "paths": [
-          "Tools/post-pve-install.sh",
-          "Tools/kernel-clean.sh",
-          "Tools/netdata.sh"
+          "src/modules/05-vm-container/backup.sh",
+          "src/modules/05-vm-container/garbage-cleanup.sh",
+          "src/modules/05-vm-container/disk.sh"
         ],
-        "reason": "了解第三方脚本的代码风格和风险等级"
+        "reason": "VM 运维为第二大模块(15文件)，涉及数据安全"
       },
       {
-        "module": "Web",
-        "action": "补充阅读高级教程内容",
+        "module": "src/modules/06-networking",
+        "action": "逐文件扫描非 init.sh 实现文件",
         "paths": [
-          "Web/advanced/gpu-passthrough.md",
-          "Web/advanced/host-network-firewall-ipv6.md",
-          "Web/advanced/vm-backup-migration-cloudinit.md"
+          "src/modules/06-networking/firewall.sh",
+          "src/modules/06-networking/addressing.sh",
+          "src/modules/06-networking/interface.sh"
         ],
-        "reason": "这些教程直接对应主脚本的高风险功能区域"
+        "reason": "网络模块文件最多(10文件)、子模块交叉引用最密"
       },
       {
-        "module": "Docs",
-        "action": "首次读取",
+        "module": "lib/",
+        "action": "完整读取 network.sh 后半部分",
         "paths": [
-          "Docs/future-guide.md",
-          "Docs/README-EN.md"
+          "lib/network.sh (offset: 50)"
         ],
-        "reason": "此前未覆盖，含项目发展路线和英文文档"
+        "reason": "镜像选择UI函数体尚未完整读取"
       }
     ],
     "optional": [
       {
-        "module": "Modules",
-        "action": "完整阅读 install-zsh.sh",
-        "reason": "作为插件规范参考示例"
+        "module": "Docs",
+        "action": "读取 future-guide.md 和 README-EN.md",
+        "reason": "了解项目发展路线和英文文档内容"
+      },
+      {
+        "module": "Tools",
+        "action": "抽样读取代表性脚本",
+        "paths": [
+          "Tools/post-pve-install.sh",
+          "Tools/kernel-clean.sh"
+        ],
+        "reason": "验证脚本是否随项目模块化有所变化"
       },
       {
         "module": ".github",
-        "action": "阅读 FUNDING.yml 和 Issue 模板",
-        "reason": "了解社区治理流程"
+        "action": "读取 beta-release.yml 和 ISSUE_TEMPLATE 文件",
+        "reason": "完整理解 CI/CD 和社区治理流程"
       }
     ]
   }

@@ -100,4 +100,5 @@ Modules/
 
 | 日期 | 变更 |
 |---|---|
+| 2026-07-08 | 更新：项目模块化后 Modules 目录无变化，install-zsh.sh 和 VGPU 状态不变 |
 | 2026-04-28 | 初始化 Modules 模块 CLAUDE.md |
