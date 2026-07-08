@@ -126,10 +126,11 @@ confirm_high_risk_action() {
 }
 vm_show_data_risk_banner() {
     echo -e "${RED}${UI_DIVIDER}${NC}"
-    echo -e "${RED}高风险提示：以下操作可能直接改写 VM 配置、磁盘、快照、克隆、恢复或迁移状态。${NC}"
-    echo -e "${YELLOW}开始前请确认：已有可验证备份、已核对 VMID/磁盘槽位/目标存储、业务已处于维护窗口。${NC}"
-    echo -e "${YELLOW}一旦误操作，数据恢复成功率通常取决于后续写入量、存储类型以及是否立即停止写入。${NC}"
-    echo -e "${RED}恢复参考: https://pve.oowo.cc/advanced/data-recovery-after-mistake${NC}"
+    echo -e "${RED}以下操作将直接改写 VM 配置、磁盘、快照、克隆、恢复或迁移状态。${NC}"
+    echo -e "${RED}本软件会执行您要求它做的事情，不会替您判断对错。${NC}"
+    echo -e "${RED}您已被告知风险，请确保备份就绪、窗口明确、命令理解到位。${NC}"
+    echo -e "${RED}如果心存疑虑，请停下来——数据无价。${NC}"
+    echo -e "${RED}恢复参考: https://pve.u3u.icu/advanced/data-recovery-after-mistake${NC}"
     echo -e "${RED}${UI_DIVIDER}${NC}"
 }
 
@@ -146,12 +147,18 @@ ensure_legal_acceptance() {
 
     clear
     show_menu_header "许可与服务条款"
-    echo -e "${CYAN}继续使用本脚本前，请先认真阅读并同意以下条款：${NC}"
-    echo -e "  - ULA（最终用户许可与使用协议）: https://pve.oowo.cc/ula"
-    echo -e "  - TOS（服务条款）: https://pve.oowo.cc/tos"
-    echo -e "${RED} 高风险提醒：涉及宿主机网络、桥接/Bond/VLAN、防火墙，以及 VM、磁盘、快照、克隆、恢复、导入导出、迁移等操作时，可能造成管理面失联、业务中断或不可逆的数据/配置损坏。${NC}"
-    echo -e "${RED} 请仅在已完成可验证备份、明确维护窗口并理解命令影响范围后继续；误操作导致的数据损失、恢复成本与第三方恢复费用均由使用者自行承担。${NC}"
-    echo -e "${RED} 您可以随时撤回同意，只需删除 ${marker} 文件即可。${NC}"
+    echo -e "继续使用本脚本即表示您同意以下条款："
+    echo -e "  ${CYAN}ULA${NC}（最终用户许可与使用协议）: https://pve.u3u.icu/ula"
+    echo -e "  ${CYAN}TOS${NC}（服务条款）: https://pve.u3u.icu/tos"
+    echo
+    echo -e "${RED}本软件会做您明确告诉它要做的事情，无论那件事情多么荒谬或具有破坏性。${NC}"
+    echo -e "${RED}您已被告知所有风险，并已独立决定使用本软件。${NC}"
+    echo -e "${RED}从此刻起，您与您的数据之间唯一的屏障就是您自己的谨慎与备份策略。${NC}"
+    echo
+    echo -e "${YELLOW}最后提醒：如果您仍然心存疑虑，请不要使用本软件。${NC}"
+    echo -e "${YELLOW}世界上有许多带有商业支持、附带责任保险的成熟 PVE 管理工具，您可以考虑购买它们。${NC}"
+    echo
+    echo -e "${YELLOW}  撤回同意: 删除 ${marker}${NC}"
     echo -e "${UI_DIVIDER}"
     echo -n "是否同意协议并继续？(Y/N): "
     local ans

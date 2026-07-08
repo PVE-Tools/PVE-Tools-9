@@ -4,7 +4,7 @@
 
 PVE Tools Pro 是一个面向 Proxmox VE 9.x 的交互式 Bash 运维工具集。目标是把高频、易错、需要大量人工检查的 PVE 运维动作收口为一个更清晰的菜单驱动工具，配合更严格的校验和更明确的高风险提示，降低误操作概率。
 
-**官网**: https://pve.oowo.cc | **仓库**: https://github.com/PVE-Tools/PVE-Tools-9
+**官网**: https://pve.u3u.icu | **仓库**: https://github.com/PVE-Tools/PVE-Tools-9
 
 ## 架构总览
 
@@ -95,7 +95,7 @@ graph TD
 
 ```bash
 # Cloudflare 短域名（推荐）
-bash <(curl -sSL https://pve.oowo.cc/PVE-Tools.sh)
+bash <(curl -sSL https://pve.u3u.icu/PVE-Tools.sh)
 
 # 中国大陆网络
 bash <(curl -sSL https://ghfast.top/raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/PVE-Tools.sh)

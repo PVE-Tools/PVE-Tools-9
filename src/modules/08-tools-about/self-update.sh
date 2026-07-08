@@ -96,7 +96,7 @@ check_update() {
         
         echo -e "----------------------------------------------"
         echo -e "${CYAN}官方文档与最新脚本：${NC}"
-        echo -e "🔗 https://pve.oowo.cc (推荐)"
+        echo -e "🔗 https://pve.u3u.icu (推荐)"
         echo -e "🔗 https://github.com/PVE-Tools/PVE-Tools-9"
         echo -e "${UI_FOOTER}"
         echo -e "按 ${GREEN}回车键${NC} 进入主菜单..."
