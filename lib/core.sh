@@ -269,7 +269,11 @@ pve_tools_version_gt() {
     local current="$2"
 
     [[ -n "$newer" && -n "$current" ]] || return 1
-    [[ "$(printf '%s\n' "$newer" "$current" | sort -V | tail -n1)" == "$newer" && "$newer" != "$current" ]]
+    # Strip pre-release suffixes (-beta, -alpha, -rc) so sort -V compares only
+    # the numeric version; a pre-release is never newer than its base release.
+    local newer_clean="${newer%%-*}"
+    local current_clean="${current%%-*}"
+    [[ "$(printf '%s\n' "$newer_clean" "$current_clean" | sort -V | tail -n1)" == "$newer_clean" && "$newer_clean" != "$current_clean" ]]
 }
 # 写入配置块（带标记）
 # 用法: apply_block <file> <marker> <content>
