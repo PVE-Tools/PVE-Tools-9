@@ -51,10 +51,18 @@ if [[ -f "$SCRIPT_DIR/lib/config.sh" && -d "$SCRIPT_DIR/src/modules" ]]; then
         source "$lib_file"
     done
 
-    while IFS= read -r -d '' module_file; do
-        # shellcheck source=/dev/null
-        source "$module_file"
-    done < <(find "$SCRIPT_DIR/src/modules" -name '*.sh' -print0 | sort -z)
+    for module_dir in "$SCRIPT_DIR/src/modules"/*/; do
+        [[ -d "$module_dir" ]] || continue
+        if [[ -f "${module_dir}init.sh" ]]; then
+            # shellcheck source=/dev/null
+            source "${module_dir}init.sh"
+        fi
+        while IFS= read -r -d '' module_file; do
+            [[ "$module_file" == "${module_dir}init.sh" ]] && continue
+            # shellcheck source=/dev/null
+            source "$module_file"
+        done < <(find "$module_dir" -name '*.sh' -print0 | sort -z)
+    done
 else
     # 远程模式：下载 dist 单文件并执行
     tmp_dir="$(mktemp -d)"
