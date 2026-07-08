@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# PVE-Tools Pro v10.0.1
-# Build: 2026-07-08T07:17:56Z
+# PVE-Tools Pro v10.1.0
+# Build: 2026-07-08T07:56:40Z
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Ciriu Networks
 
@@ -11,7 +11,7 @@
 # Copyright (C) 2026 Ciriu Networks
 
 # 版本信息
-CURRENT_VERSION="10.0.1"
+CURRENT_VERSION="10.1.0"
 BUILD_NICKNAME="Evanescia"
 VERSION_FILE_URL="https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/VERSION"
 UPDATE_FILE_URL="https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/UPDATE"
