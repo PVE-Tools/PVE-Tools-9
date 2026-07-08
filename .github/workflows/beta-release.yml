@@ -29,18 +29,6 @@ jobs:
       - name: Build single script from modules
         run: bash build.sh
 
-      - name: Install ssc (pipe-mode script compiler)
-        run: |
-          git clone --depth 1 https://github.com/liberize/ssc.git /tmp/ssc
-          cd /tmp/ssc
-          make
-          sudo cp ssc /usr/local/bin/
-
-      - name: Compile script to binary (static + pipe mode)
-        run: |
-          ssc -s -r dist/PVE-Tools.sh pve-tools
-          chmod +x pve-tools
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -53,18 +41,11 @@ jobs:
             
             ## 安装方式
             
-            **方式一：直接运行脚本 (推荐)**
+            **直接运行脚本 (推荐)**
             ```bash
             bash -c "$(curl -fsSL https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/beta/dist/PVE-Tools.sh)"
             ```
-            
-            **方式二：下载二进制文件**
-            ```bash
-            chmod +x pve-tools
-            ./pve-tools
-            ```
           files: |
-            pve-tools
             dist/PVE-Tools.sh
           draft: false
           prerelease: true
