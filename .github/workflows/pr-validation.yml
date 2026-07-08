@@ -21,10 +21,13 @@ jobs:
       - name: Shell syntax check
         run: |
           bash -n PVE-Tools.sh
+          bash -n dev.sh
+          bash build.sh
+          bash -n dist/PVE-Tools.sh
           
       - name: Version consistency check
         run: |
-          SCRIPT_VERSION=$(grep "CURRENT_VERSION=" PVE-Tools.sh | cut -d'"' -f2)
+          SCRIPT_VERSION=$(grep "CURRENT_VERSION=" lib/config.sh | cut -d'"' -f2)
           VERSION_FILE_VERSION=$(cat VERSION 2>/dev/null)
           if [ "$SCRIPT_VERSION" != "$VERSION_FILE_VERSION" ]; then
             echo "Version inconsistency: script($SCRIPT_VERSION) != version file($VERSION_FILE_VERSION)"
