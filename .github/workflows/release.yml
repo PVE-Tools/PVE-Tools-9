@@ -33,11 +33,11 @@ jobs:
         run: |
           sudo add-apt-repository ppa:neurobin/ppa -y
           sudo apt-get update
-          sudo apt-get install shc -y
+          sudo apt-get install -y shc
 
-      - name: Compile script to binary
+      - name: Compile script to binary (statically linked)
         run: |
-          shc -f dist/PVE-Tools.sh -o pve-tools
+          CFLAGS="-static" shc -r -f dist/PVE-Tools.sh -o pve-tools
           chmod +x pve-tools
           
       - name: Generate release notes
