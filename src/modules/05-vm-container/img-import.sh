@@ -268,7 +268,7 @@ img_convert_and_import_to_vm() {
             elif [[ -z "$vol" ]]; then
                 log_info "未能解析导入卷 ID，跳过自动挂载。"
             else
-                attach_slot="$(rdm_find_free_slot "$vmid" "$attach_bus" 2>/dev/null)" || true
+                attach_slot="$(vm_find_free_disk_slot "$vmid" "$attach_bus" 2>/dev/null)" || true
                 if [[ -z "$attach_slot" ]]; then
                     log_warn "未找到可用插槽，跳过自动挂载"
                 else

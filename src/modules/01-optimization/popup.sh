@@ -57,7 +57,9 @@ restore_proxmoxlib() {
         return
     fi
 
-    reinstall_pve_webui_packages
+    if ! reinstall_pve_webui_packages; then
+        return 1
+    fi
 }
 
 # 合并 local 与 local-lvm

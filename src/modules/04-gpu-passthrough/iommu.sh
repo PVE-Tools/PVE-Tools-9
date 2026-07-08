@@ -32,10 +32,13 @@ enable_pass() {
     else
         iommu="intel_iommu=on"
     fi
-    if [ `grep $iommu /etc/default/grub|wc -l` = 0 ];then
-        backup_file "/etc/default/grub"
-        sed -i 's|quiet|quiet '$iommu'|' /etc/default/grub
-        update-grub
+    if ! grep -qw "$(echo "$iommu" | cut -d'=' -f1)" /etc/default/grub; then
+        if grub_add_param "$iommu"; then
+            update-grub
+        else
+            log_error "GRUB 参数添加失败，无法继续配置硬件直通"
+            return 1
+        fi
         if [ `grep "vfio" /etc/modules|wc -l` = 0 ];then
             cat <<-EOF >> /etc/modules
 vfio
@@ -81,19 +84,15 @@ disable_pass() {
     if [ `grep $iommu /etc/default/grub|wc -l` = 0 ];then
         log_warn "您还没有配置过该项"
     else
-        backup_file "/etc/default/grub"
-        {
-            sed -i 's/ '$iommu'//g' /etc/default/grub
-            sed -i '/vfio/d' /etc/modules
-            # 使用安全的配置块删除，而不是直接删除整个文件
-            remove_block "/etc/modprobe.d/blacklist.conf" "HARDWARE_PASSTHROUGH"
-            remove_block "/etc/modprobe.d/vfio.conf" "HARDWARE_PASSTHROUGH"
-            sleep 1
-        }
+        grub_remove_param "$iommu"
+        backup_file "/etc/modules"
+        sed -i '/vfio/d' /etc/modules
+        # 使用安全的配置块删除，而不是直接删除整个文件
+        remove_block "/etc/modprobe.d/blacklist.conf" "HARDWARE_PASSTHROUGH"
+        remove_block "/etc/modprobe.d/vfio.conf" "HARDWARE_PASSTHROUGH"
+        update-grub
         log_success "关闭设置后需要重启系统，请准备就绪后重启宿主机。"
         log_tips "重启后才可以应用对内核引导的修改哦！命令是 reboot"
-        sleep 1
-        update-grub
     fi
 }
 

@@ -179,17 +179,17 @@ host_firewall_upsert_option() {
 host_firewall_select_security_group() {
     local allow_new="${1:-}"
     mapfile -t groups < <(host_firewall_get_security_groups)
-    echo -e "${CYAN}当前安全组：${NC}"
+    echo -e "${CYAN}当前安全组：${NC}" >&2
     local idx=1
     local group
     for group in "${groups[@]}"; do
-        printf '  [%d] %s\n' "$idx" "$group"
+        printf '  [%d] %s\n' "$idx" "$group" >&2
         idx=$((idx + 1))
     done
     if [[ "$allow_new" == "allow_new" ]]; then
-        echo "  [N] 新建安全组"
+        echo "  [N] 新建安全组" >&2
     fi
-    echo "$UI_DIVIDER"
+    echo "$UI_DIVIDER" >&2
     local pick
     read -p "请选择安全组 (0 返回): " pick
     [[ "$pick" == "0" ]] && return 2

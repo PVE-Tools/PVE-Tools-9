@@ -8,7 +8,7 @@ third_party_market_menu() {
     if command -v curl &> /dev/null; then
         download_cmd=(curl -fsSL --connect-timeout 10 --max-time 60 -o)
     elif command -v wget &> /dev/null; then
-        download_cmd=(wget -q -O)
+        download_cmd=(wget -q --timeout=60 -O)
     else
         log_error "未检测到 curl 或 wget，无法访问第三方软件市场"
         return 1
@@ -177,15 +177,23 @@ third_party_market_menu() {
             selected_fallback_label="GitHub"
         fi
 
-        echo
-        echo -e "${RED}⚠️  第三方脚本风险提示:${NC}"
-        echo "  名称: $selected_name"
-        echo "  作者: $selected_author"
-        echo "  版本: $selected_version"
-        echo "  来源: $selected_url"
-        echo "  本工具仅负责下载和执行，请确认你已审计脚本内容并接受风险。"
-        read -p "输入 'run' 确认执行，其他任意键取消: " confirm_run
-        if [[ "$confirm_run" != "run" ]]; then
+        clear
+        show_menu_header "第三方脚本执行确认"
+        echo "  脚本名称: $selected_name"
+        echo "  作者:     $selected_author"
+        echo "  版本:     $selected_version"
+        echo "  来源:     $selected_url"
+        echo "${UI_DIVIDER}"
+        echo "  本工具仅负责下载和执行，不审计脚本内容。"
+        echo "  第三方脚本可能修改系统配置、安装/卸载软件、访问网络。"
+        echo "  执行前请务必前往上述仓库审计脚本内容，并备份关键配置。"
+        echo "${UI_DIVIDER}"
+        if ! confirm_high_risk_action \
+            "执行第三方脚本: $selected_name" \
+            "将下载并直接执行该第三方脚本，PVE-Tools 不对其内容负责。" \
+            "第三方脚本可能包含任意操作，包括修改系统配置、安装或卸载软件、访问网络资源。" \
+            "建议先前往脚本仓库审计源码，备份关键配置，并保留控制台访问。" \
+            "RUN"; then
             log_info "已取消执行 $selected_name"
             pause_function
             continue

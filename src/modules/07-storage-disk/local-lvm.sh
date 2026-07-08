@@ -6,9 +6,12 @@ merge_local_storage() {
     log_step "准备合并存储空间，让小硬盘发挥最大价值"
     log_warn "重要提醒：此操作会删除 local-lvm，请确保重要数据已备份！"
     
-    echo -e "${YELLOW}您确定要继续吗？这个操作不可逆哦${NC}"
-    read -p "输入 'yes' 确认继续，其他任意键取消: " -r
-    if [[ ! $REPLY == "yes" ]]; then
+    if ! confirm_high_risk_action \
+        "合并 local-lvm 到 local 存储" \
+        "将删除 /dev/pve/data 逻辑卷，所有 LVM-thin 上的 VM 磁盘和数据将被永久销毁。" \
+        "执行 lvremove、lvextend、resize2fs，不可逆。仅在 root 为 ext 文件系统时有效。" \
+        "请确保已将 local-lvm 上的所有 VM 磁盘迁移或备份。" \
+        "CONFIRM"; then
         log_info "明智的选择！操作已取消"
         return
     fi

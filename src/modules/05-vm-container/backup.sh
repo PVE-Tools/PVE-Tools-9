@@ -11,6 +11,7 @@ vm_backup_create() {
     [[ "$rc" -eq 2 ]] && return 0
     [[ -n "$vmids_text" ]] || return 1
 
+    local -a vmids
     mapfile -t vmids < <(printf '%s\n' "$vmids_text" | awk 'NF')
 
     local store

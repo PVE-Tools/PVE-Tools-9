@@ -22,9 +22,12 @@ fastpve_quick_download_menu() {
     echo "    • 本脚本仅负责下载并执行 FastPVE，具体操作由 FastPVE 完成"
     echo "${UI_DIVIDER}"
 
-    read -p "是否立即运行 FastPVE 脚本？(y/N): " confirm
-    confirm=${confirm:-N}
-    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+    if ! confirm_high_risk_action \
+        "运行 FastPVE 第三方脚本" \
+        "FastPVE 由社区开发者 @kspeeder 维护，本工具仅负责下载并执行其官方脚本。" \
+        "第三方脚本可能修改系统配置、安装软件或执行其他操作。出现任何问题请向 FastPVE 项目反馈。" \
+        "请确认已阅读上方使用说明，并信任 FastPVE 项目来源 ($FASTPVE_PROJECT_URL)。" \
+        "EXECUTE-FASTPVE"; then
         log_info "已取消执行 FastPVE"
         return 0
     fi

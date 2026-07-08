@@ -21,21 +21,23 @@ update_grub_config() {
     if command -v update-grub &> /dev/null; then
         if update-grub; then
             log_success "GRUB 配置更新成功"
+            return 0
         else
-            log_warn "GRUB 配置更新过程中出现警告，但可能仍然成功，请手动检查确认！"
+            log_warn "GRUB 配置更新失败，请手动检查 GRUB 配置"
+            return 1
         fi
     elif command -v grub-mkconfig &> /dev/null; then
         if grub-mkconfig -o "$grub_cfg"; then
             log_success "GRUB 配置更新成功"
+            return 0
         else
-            log_warn "GRUB 配置更新过程中出现警告"
+            log_warn "GRUB 配置更新失败"
+            return 1
         fi
     else
         log_error "找不到 GRUB 更新工具"
         return 1
     fi
-    
-    return 0
 }
 
 # 切换默认启动内核

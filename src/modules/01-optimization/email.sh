@@ -204,7 +204,12 @@ pve_mail_notification_setup() {
     echo -e "${RED}请确保你使用的是邮箱提供商的 SMTP 授权码/应用专用密码，而非登录密码。${NC}"
     echo -e "${UI_DIVIDER}"
 
-    if ! confirm_action "开始应用配置并重载 postfix？"; then
+    if ! confirm_high_risk_action \
+        "应用 Postfix SMTP 中继配置" \
+        "将修改 postfix 配置文件并写入 SMTP 凭据到磁盘（/etc/postfix/sasl_passwd）。" \
+        "将安装 libsasl2-modules、重载 postfix、重启 zfs-zed。配置错误的 SMTP 参数可能导致系统邮件发送失败。" \
+        "建议使用邮箱提供商的 SMTP 授权码，而非登录密码。" \
+        "CONFIRM"; then
         return 0
     fi
 

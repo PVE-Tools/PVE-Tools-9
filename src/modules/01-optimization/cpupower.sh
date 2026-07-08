@@ -3,7 +3,8 @@
 # Copyright (C) 2026 Ciriu Networks
 
 cpupower() {
-    governors=`cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors`
+    local governors cpupowerid GOVERNOR
+    governors=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors)
     while :; do
         clear
         show_menu_header "设置CPU电源模式"
@@ -25,6 +26,7 @@ cpupower() {
         read -p "请选择: [ ]" -n 1 cpupowerid
         echo  # New line after input
         cpupowerid=${cpupowerid:-2}
+        GOVERNOR=""
         case "${cpupowerid}" in
             1)
                 GOVERNOR="conservative"
@@ -113,6 +115,16 @@ cpupower_del() {
 #--------------CPU、主板、硬盘温度显示----------------
 # 安装工具
 cpu_add() {
+    block_non_pve9_destructive "配置温度监控" || return 1
+    if ! confirm_high_risk_action \
+        "配置 PVE Web UI 温度/频率/硬盘监控" \
+        "将直接修改 Nodes.pm、pvemanagerlib.js、proxmoxlib.js 三个核心 PVE Web UI 文件。" \
+        "将安装 lm-sensors/nvme-cli/sysstat/linux-cpupower/hdparm/smartmontools，修改 /etc/modules，重启 pveproxy。" \
+        "请备份以下文件：/usr/share/perl5/PVE/API2/Nodes.pm、/usr/share/pve-manager/js/pvemanagerlib.js、/usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js。" \
+        "CONFIRM"; then
+        log_info "用户取消操作"
+        return 1
+    fi
     nodes="/usr/share/perl5/PVE/API2/Nodes.pm"
     pvemanagerlib="/usr/share/pve-manager/js/pvemanagerlib.js"
     proxmoxlib="/usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js"
@@ -160,17 +172,30 @@ cpu_add() {
     # 软件包安装完成
     if [ "$install" == "ok" ]; then
         log_success "软件包安装完成，检测硬件信息"
-        sensors-detect --auto > /tmp/sensors
-        drivers=$(sed -n '/Chip drivers/,/\#----cut here/p' /tmp/sensors | sed '/Chip /d' | sed '/cut/d')
+        local sensors_tmp
+        sensors_tmp="$(mktemp)"
+        sensors-detect --auto > "$sensors_tmp"
+        drivers=$(sed -n '/Chip drivers/,/\#----cut here/p' "$sensors_tmp" | sed '/Chip /d' | sed '/cut/d')
 
         if [ $(echo $drivers | wc -w) = 0 ]; then
             log_warn "没有找到任何驱动，似乎你的系统不支持或驱动安装失败。"
             pause_function
         else
+            local modules_backed_up=0
             for i in $drivers; do
-                modprobe $i
-                if [ $(grep $i /etc/modules | wc -l) = 0 ]; then
-                    echo $i >> /etc/modules
+                if modprobe "$i"; then
+                    if ! grep -qw "$i" /etc/modules; then
+                        if [[ "$modules_backed_up" -eq 0 ]]; then
+                            if ! backup_file "/etc/modules"; then
+                                log_error "无法备份 /etc/modules，跳过驱动持久化"
+                                break
+                            fi
+                            modules_backed_up=1
+                        fi
+                        echo "$i" >> /etc/modules
+                    fi
+                else
+                    log_warn "modprobe $i 失败，跳过该驱动"
                 fi
             done
             sensors
@@ -178,7 +203,7 @@ cpu_add() {
             log_success "驱动信息配置成功。"
         fi
         [[ -e /etc/init.d/kmod ]] && /etc/init.d/kmod start
-        rm /tmp/sensors
+        rm -f "$sensors_tmp"
     fi
 
     log_step "备份源文件"
@@ -225,8 +250,11 @@ cpu_add() {
     fi
 
     # 生成系统变量 (参考 PVE 8 脚本的改进实现)
-    tmpf=tmpfile.temp
-    touch $tmpf
+    local tmpf
+    tmpf="$(mktemp)" || {
+        log_error "无法创建临时文件"
+        return 1
+    }
     cat > $tmpf << 'EOF'
 
 #modbyshowtempfreq
@@ -363,8 +391,11 @@ EOF
     rm $tmpf
 
     ###################  修改pvemanagerlib.js   ##########################
-    tmpf=tmpfile.temp
-    touch $tmpf
+    local tmpf
+    tmpf="$(mktemp)" || {
+        log_error "无法创建临时文件"
+        return 1
+    }
     cat > $tmpf << 'EOF'
 
 //modbyshowtempfreq

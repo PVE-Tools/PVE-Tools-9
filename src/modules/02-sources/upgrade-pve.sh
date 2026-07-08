@@ -38,16 +38,24 @@ pve8_to_pve9_upgrade() {
     # 确认用户要继续执行升级
     echo "您确定要继续升级吗？本次任务执行以下操作："
     echo "注意：升级过程中可能会遇到一些警告或错误，请根据提示进行处理！脚本无法处理故障提示！(脚本只能把提示扔给你..) )"
-    read -p "输入 'yesido' 确认继续，其他任意键取消: " confirm
-    if [[ "$confirm" != "yesido" ]]; then
+    if ! confirm_high_risk_action \
+        "PVE 8.x 升级到 PVE 9.x（不可逆）" \
+        "系统可能无法启动、VM/CT 配置丢失、ZFS 池损坏、网络失联。" \
+        "将更换 Debian 13 源、升级所有软件包、修改引导配置并强制重启。" \
+        "请先完成 PBS/dd 全系统备份，手动备份 /etc/pve、/var/lib/pve-cluster、/etc/network，确保有 IPMI/iDRAC/物理访问。" \
+        "yesido"; then
         log_info "已取消升级操作，明智之举"
         return 0
     fi
     
     # 1. 更新当前系统到最新 PVE 8.x 版本
     log_info "更新当前系统到最新 PVE 8.x 版本..."
-    if ! apt update && apt dist-upgrade -y; then
-        log_error "更新 PVE 8.x 到最新版本失败了，请检查网络连接或源配置，或者前往作者的GitHub反馈issue.."
+    if ! apt update; then
+        log_error "apt update 失败，请检查网络连接或源配置"
+        return 1
+    fi
+    if ! apt dist-upgrade -y; then
+        log_error "apt dist-upgrade 失败，请检查软件包冲突或前往作者的GitHub反馈issue"
         return 1
     fi
     
@@ -80,8 +88,12 @@ pve8_to_pve9_upgrade() {
         log_error "pve8to9 检查发现严重错误!! 一般是软件包冲突或是其他报错!建议修复后再进行升级！"
         echo -e "${YELLOW}升级检查结果详情：${NC}"
         cat /tmp/pve8to9_check.log
-        read -p "您确定要忽略这些错误并继续升级吗？这不是在开玩笑！(y/N): " force_upgrade
-        if [[ "$force_upgrade" != "y" && "$force_upgrade" != "Y" ]]; then
+        if ! confirm_high_risk_action \
+            "忽略 pve8to9 严重错误并强制升级" \
+            "pve8to9 检测到 FAIL 级别错误，忽略可能导致升级失败、系统无法启动或数据丢失。" \
+            "将跳过 pve8to9 检查并继续执行 PVE 8.x → 9.x 升级流程。" \
+            "这不是在开玩笑！请确保已完整备份并有回滚方案。" \
+            "FORCE-UPGRADE"; then
             log_info "由于存在严重错误，已取消升级操作...返回主界面"
             return 1
         fi

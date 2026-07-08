@@ -127,8 +127,12 @@ get_available_kernels() {
     log_info "正在从 Tuna 镜像站获取可用内核列表..."
     
     # 检查网络连接
-    if ! ping -c 1 mirrors.tuna.tsinghua.edu.cn &> /dev/null; then
-        log_error "网络连接失败，无法获取内核列表！请检查 https://mirrors.tuna.tsinghua.edu.cn 的链接状态！"
+    if [[ "$IS_OFFLINE_MODE" -eq 1 ]]; then
+        log_warn "离线模式下无法获取可用内核列表"
+        return 1
+    fi
+    if ! network_can_access_internet; then
+        log_error "网络连接失败，无法获取内核列表！"
         return 1
     fi
     
@@ -250,7 +254,7 @@ set_default_kernel() {
     log_warn "使用备用方法设置默认内核"
     
     # 备份当前 GRUB 配置
-    cp /etc/default/grub /etc/default/grub.backup.$(date +%Y%m%d%H%M%S)
+    backup_file "/etc/default/grub"
     
     # 设置 GRUB_DEFAULT 为内核版本
     if sed -i "s/^GRUB_DEFAULT=.*/GRUB_DEFAULT=\"Advanced options for Proxmox VE GNU\/Linux>Proxmox VE GNU\/Linux, with Linux $kernel_version\"/" /etc/default/grub; then
@@ -358,8 +362,12 @@ kernel_management_menu() {
                 remove_old_kernels
                 ;;
             6)
-                read -p "确认要重启系统吗？(y/N): " reboot_confirm
-                if [[ "$reboot_confirm" == "y" || "$reboot_confirm" == "Y" ]]; then
+                if confirm_high_risk_action \
+                    "重启宿主机" \
+                    "将立即重启当前 Proxmox VE 宿主机，所有运行中的 VM/CT 将被中断。" \
+                    "重启过程中管理面不可用，请确保维护窗口内执行。" \
+                    "请先正常关机或迁移所有 VM/CT。" \
+                    "REBOOT"; then
                     log_info "系统将在5秒后重启..."
                     echo "按 Ctrl+C 取消重启"
                     sleep 5

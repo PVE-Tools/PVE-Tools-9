@@ -26,6 +26,9 @@ jobs:
           echo "TAG=$TAG" >> $GITHUB_OUTPUT
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           
+      - name: Build single script from modules
+        run: bash build.sh
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -38,9 +41,12 @@ jobs:
             
             ## 安装方式
             
+            **直接运行脚本 (推荐)**
             ```bash
-            bash <(curl -sSL https://github.com/PVE-Tools/PVE-Tools-9/blob/beta/PVE-Tools.sh)
+            bash <(curl -sSL https://pve.oowo.cc/PVE-Tools.sh)
             ```
+          files: |
+            dist/PVE-Tools.sh
           draft: false
           prerelease: true
         env:
