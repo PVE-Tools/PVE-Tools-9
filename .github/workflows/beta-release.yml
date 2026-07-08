@@ -29,15 +29,16 @@ jobs:
       - name: Build single script from modules
         run: bash build.sh
 
-      - name: Install shc
+      - name: Install ssc (pipe-mode script compiler)
         run: |
-          sudo add-apt-repository ppa:neurobin/ppa -y
-          sudo apt-get update
-          sudo apt-get install -y shc
+          git clone --depth 1 https://github.com/liberize/ssc.git /tmp/ssc
+          cd /tmp/ssc
+          make
+          sudo cp ssc /usr/local/bin/
 
-      - name: Compile script to binary (statically linked)
+      - name: Compile script to binary (static + pipe mode)
         run: |
-          CFLAGS="-static" shc -r -f dist/PVE-Tools.sh -o pve-tools
+          ssc -s -r dist/PVE-Tools.sh pve-tools
           chmod +x pve-tools
 
       - name: Create GitHub Release
