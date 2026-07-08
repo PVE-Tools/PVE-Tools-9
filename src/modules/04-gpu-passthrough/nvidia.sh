@@ -585,7 +585,7 @@ nvidia_setup_vgpu_unlock() {
     echo "  驱动/内核/补丁版本不匹配可能导致服务异常、宿主机告警或 VM 无法使用 vGPU。"
     echo
     echo -e "${CYAN}推荐先阅读 Wiki：${NC}"
-    echo "  对应文章: https://pve.oowo.cc/advanced/nvidia-vgpu-driver-notes"
+    echo "  对应文章: https://pve.u3u.icu/advanced/nvidia-vgpu-driver-notes"
     echo "${UI_DIVIDER}"
     read -p "请输入 '确认' 或 'Sure' 继续: " response
     response=$(echo "$response" | xargs)

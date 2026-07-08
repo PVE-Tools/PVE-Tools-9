@@ -4,7 +4,7 @@
 
 An all-in-one operations script for Proxmox VE 9.x, covering VM lifecycle workflows, host networking / firewall / IPv6, GPU / PCI passthrough, day-to-day maintenance, and third-party integrations.
 
-[Docs](https://pve.oowo.cc) | [Changelog](https://pve.oowo.cc/update) | [FAQ](https://pve.oowo.cc/faq) | [中文](./README.md) | [日本語](./REAMDE-JP.md)
+[Docs](https://pve.u3u.icu) | [Changelog](https://pve.u3u.icu/update) | [FAQ](https://pve.u3u.icu/faq) | [中文](./README.md) | [日本語](./REAMDE-JP.md)
 
 </div>
 
@@ -30,7 +30,7 @@ Key capabilities:
 ## Quick Start
 
 ```bash
-bash <(curl -sSL https://pve.oowo.cc/PVE-Tools.sh)
+bash <(curl -sSL https://pve.u3u.icu/PVE-Tools.sh)
 ```
 
 ## Safety Notes
@@ -42,25 +42,25 @@ bash <(curl -sSL https://pve.oowo.cc/PVE-Tools.sh)
 
 ## Website Links
 
-- Documentation: https://pve.oowo.cc
-- Features: https://pve.oowo.cc/features
-- Changelog: https://pve.oowo.cc/update
-- FAQ: https://pve.oowo.cc/faq
-- Host network / firewall / IPv6 guide: https://pve.oowo.cc/advanced/host-network-firewall-ipv6
-- VM backup / migration / Cloud-Init guide: https://pve.oowo.cc/advanced/vm-backup-migration-cloudinit
+- Documentation: https://pve.u3u.icu
+- Features: https://pve.u3u.icu/features
+- Changelog: https://pve.u3u.icu/update
+- FAQ: https://pve.u3u.icu/faq
+- Host network / firewall / IPv6 guide: https://pve.u3u.icu/advanced/host-network-firewall-ipv6
+- VM backup / migration / Cloud-Init guide: https://pve.u3u.icu/advanced/vm-backup-migration-cloudinit
 
 ## Sponsor
 
 If this project saves you time or helps you avoid costly mistakes, you can support ongoing maintenance here:
 
-- Sponsor page: https://pve.oowo.cc/sponsor
+- Sponsor page: https://pve.u3u.icu/sponsor
 - Afdian: https://afdian.com/a/cyrenenight
 
 ## Pay For Services
 
 If you need one-on-one remote support, emergency recovery, passthrough troubleshooting, network work, or a full PVE setup, check the paid support page:
 
-- Paid support: https://pve.oowo.cc/pay
+- Paid support: https://pve.u3u.icu/pay
 
 ## Other Languages
 
@@ -71,7 +71,7 @@ If you need one-on-one remote support, emergency recovery, passthrough troublesh
 
 This project is a real operations tool for Proxmox VE hosts and guests. If you run high-risk actions without validated backups, a maintenance window, and a rollback plan, you may cause management-plane loss, guest outage, or irreversible data damage. All data loss, recovery cost, and third-party recovery expenses remain the responsibility of the operator.
 
-Full ULA page: https://pve.oowo.cc/ula
+Full ULA page: https://pve.u3u.icu/ula
 The ULA outlines the intended scope of the script, its risk boundaries, the operator's responsibilities, and the disclaimer for network interruption, configuration mistakes, data damage, service unavailability, and related recovery costs. Read it before running backup or restore, migration, Cloud-Init, disk changes, GPU passthrough, host networking, or firewall operations.
 
 ## License

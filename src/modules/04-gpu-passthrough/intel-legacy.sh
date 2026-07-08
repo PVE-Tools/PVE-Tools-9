@@ -50,7 +50,7 @@ restore_qemu_kvm() {
 intel_gpu_passthrough() {
     log_step "开始 Intel 核显直通配置"
     echo "注意：此功能基于 AICodo 的修改版 QEMU 和 ROM"
-    echo "详细原理与教程：https://pve.oowo.cc/advanced/gpu-passthrough"
+    echo "详细原理与教程：https://pve.u3u.icu/advanced/gpu-passthrough"
     echo "适用于需要将 Intel 核显直通给 Windows 虚拟机且遇到代码 43 或黑屏的情况"
     echo "支持的 CPU 架构：6代(Skylake) 到 14代(Raptor Lake Refresh)"
     echo "项目地址：https://github.com/AICodo/intel6-14rom"
@@ -65,7 +65,7 @@ intel_gpu_passthrough() {
     log_warn "折腾有风险，入坑需谨慎！"
     echo
     log_tips "如果配置失败，请访问文档站查看详细教程并留言反馈："
-    log_tips "🔗 https://pve.oowo.cc/advanced/gpu-passthrough"
+    log_tips "🔗 https://pve.u3u.icu/advanced/gpu-passthrough"
     echo
     log_tips "如需要反馈或者请求更新ROM文件适配你的CPU，请前往AICodo的GitHub仓库开ISSUE反馈，不是找我。"
     echo

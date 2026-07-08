@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[官网 / Docs](https://pve.oowo.cc) | [更新日志](https://pve.oowo.cc/update) | [FAQ](https://pve.oowo.cc/faq) | [English](./README_EN.md) | [日本語](./REAMDE-JP.md)
+[官网 / Docs](https://pve.u3u.icu) | [更新日志](https://pve.u3u.icu/update) | [FAQ](https://pve.u3u.icu/faq) | [English](./README_EN.md) | [日本語](./REAMDE-JP.md)
 
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
 [![Shell Script](https://img.shields.io/badge/Shell-Script-4EAA25?logo=gnu-bash&logoColor=white)](https://www.gnu.org/software/bash/)
@@ -49,7 +49,7 @@
 
 ### cloudflare 短域名
 ```bash
-bash <(curl -sSL https://pve.oowo.cc/PVE-Tools.sh)
+bash <(curl -sSL https://pve.u3u.icu/PVE-Tools.sh)
 ```
 
 ### 中国大陆网络
@@ -83,19 +83,19 @@ PVE Tools Pro 是一个面向 Proxmox VE 9.x 的交互式 Bash 工具。
 
 ## 官网入口
 
-- 官方文档：https://pve.oowo.cc
-- 功能特性：https://pve.oowo.cc/features
-- 更新日志：https://pve.oowo.cc/update
-- 常见问题：https://pve.oowo.cc/faq
-- 数据误操作恢复参考：https://pve.oowo.cc/advanced/data-recovery-after-mistake
-- 宿主机网络 / 防火墙 / IPv6 专题：https://pve.oowo.cc/advanced/host-network-firewall-ipv6
-- VM 备份 / 迁移 / Cloud-Init 专题：https://pve.oowo.cc/advanced/vm-backup-migration-cloudinit
+- 官方文档：https://pve.u3u.icu
+- 功能特性：https://pve.u3u.icu/features
+- 更新日志：https://pve.u3u.icu/update
+- 常见问题：https://pve.u3u.icu/faq
+- 数据误操作恢复参考：https://pve.u3u.icu/advanced/data-recovery-after-mistake
+- 宿主机网络 / 防火墙 / IPv6 专题：https://pve.u3u.icu/advanced/host-network-firewall-ipv6
+- VM 备份 / 迁移 / Cloud-Init 专题：https://pve.u3u.icu/advanced/vm-backup-migration-cloudinit
 
 ## Sponsor
 
 如果这个项目帮你节省了时间、避开了误操作，或者单纯想支持后续维护与继续更新，可以通过以下页面赞助：
 
-- Sponsor 页面：https://pve.oowo.cc/sponsor
+- Sponsor 页面：https://pve.u3u.icu/sponsor
 - 爱发电：https://afdian.com/a/cyrenenight
 - 微信：![微信赞赏码](./images/WeChat.jpg)
 
@@ -105,7 +105,7 @@ PVE Tools Pro 是一个面向 Proxmox VE 9.x 的交互式 Bash 工具。
 
 如果你需要一对一远程协助、紧急救砖、网络配置、直通问题排查或完整代配，可以直接查看官方付费支持说明：
 
-- 付费技术支持页面：https://pve.oowo.cc/pay
+- 付费技术支持页面：https://pve.u3u.icu/pay
 
 这里购买的是时间与交付结果，不是单纯赞助。
 
@@ -118,17 +118,17 @@ PVE Tools Pro 是一个面向 Proxmox VE 9.x 的交互式 Bash 工具。
 
 这是一个会真实调用 PVE 原生命令并修改宿主机 / VM 配置的运维工具。如果你在没有经过验证的备份、没有维护窗口、没有明确回滚方案的前提下执行高风险动作，可能导致管理面失联、业务中断、配置损坏或不可逆的数据损失。所有数据损失、恢复成本与第三方恢复费用均由实际操作人自行承担。
 
-完整 ULA 页面：https://pve.oowo.cc/ula
+完整 ULA 页面：https://pve.u3u.icu/ula
 该页面主要说明脚本的适用范围、风险边界、用户自担的操作责任，以及对网络中断、配置错误、数据损坏、业务不可用和衍生恢复成本的免责声明。
 执行备份恢复、迁移、Cloud-Init、磁盘调整、GPU 直通、宿主机网络或防火墙变更前，建议先完整阅读。
 
 ## Community
 
-- 官网：https://pve.oowo.cc
+- 官网：https://pve.u3u.icu
 - GitHub Issues：https://github.com/PVE-Tools/PVE-Tools-9/issues
 - QQ 群：1031976463
 - Telegram 群：https://t.me/pvetools233
-- Sponsor：https://pve.oowo.cc/sponsor
+- Sponsor：https://pve.u3u.icu/sponsor
 
 ## License
 

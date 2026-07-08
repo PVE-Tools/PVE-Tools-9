@@ -6,7 +6,7 @@ menu_optimization() {
     while true; do
         clear
         echo "功能 1/2 请在外部SSH环境下使用该功能！否则会导致PVE WebUi重启导致Shell断开连接修改失效！"
-        echo "不要犟！查看如何连接到PVE SSH教程：https://pve.oowo.cc/advanced/how-to-connect-ssh.html"
+        echo "不要犟！查看如何连接到PVE SSH教程：https://pve.u3u.icu/advanced/how-to-connect-ssh.html"
         show_menu_header "系统优化"
         show_menu_option "1" "删除订阅弹窗"
         show_menu_option "2" "${MAGENTA}一键优化 (换源+删弹窗+更新)${NC}"
