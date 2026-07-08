@@ -239,8 +239,12 @@ igpu_sriov_setup() {
 
     echo "配置 $vfs_num 个虚拟核显"
 
-    # 写入 sysfs.conf
-    echo "devices/pci0000:00/0000:00:02.0/sriov_numvfs = $vfs_num" > /etc/sysfs.conf
+    # 写入 sysfs.conf（保留其它已有配置）
+    backup_file "/etc/sysfs.conf"
+    if [[ -f /etc/sysfs.conf ]]; then
+        sed -i '/sriov_numvfs/d' /etc/sysfs.conf
+    fi
+    echo "devices/pci0000:00/0000:00:02.0/sriov_numvfs = $vfs_num" >> /etc/sysfs.conf
     echo -e "✓ VFs 数量配置完成"
 
     # 完成提示

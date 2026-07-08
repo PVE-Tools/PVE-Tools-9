@@ -128,18 +128,22 @@ intel_gpu_passthrough() {
     else
         # 加速下载
         local fast_qemu_url="https://ghfast.top/${qemu_deb_url}"
+        local qemu_deb_file
+        qemu_deb_file="$(mktemp --suffix=.deb)"
         log_info "正在下载: $fast_qemu_url"
-        wget -O /tmp/pve-qemu-kvm.deb "$fast_qemu_url"
-        
-        if [ -s "/tmp/pve-qemu-kvm.deb" ]; then
+        wget -O "$qemu_deb_file" "$fast_qemu_url"
+
+        if [[ -s "$qemu_deb_file" ]]; then
             log_info "正在安装修改版 QEMU..."
-            dpkg -i /tmp/pve-qemu-kvm.deb
+            dpkg -i "$qemu_deb_file"
+            rm -f "$qemu_deb_file"
             log_success "安装完成"
-            
+
             # 阻止更新
             apt-mark hold pve-qemu-kvm
             log_info "已锁定 pve-qemu-kvm 防止自动更新"
         else
+            rm -f "$qemu_deb_file"
             log_error "下载失败"
         fi
     fi
@@ -298,8 +302,12 @@ intel_gpu_passthrough() {
         args_line="$args_line -set device.hostpci1.bus=pcie.0 -set device.hostpci1.addr=0x03.0"
     fi
     
-    # 写入 args (先删除旧的 args)
-    sed -i '/^args:/d' "/etc/pve/qemu-server/$vmid.conf"
+    # 写入 args (保留用户已有的 args 参数)
+    if grep -q '^args:' "/etc/pve/qemu-server/$vmid.conf"; then
+        log_warn "检测到 VM $vmid 已有 args 配置，将被新 args 覆盖"
+        log_warn "原 args 内容: $(grep '^args:' "/etc/pve/qemu-server/$vmid.conf")"
+        sed -i '/^args:/d' "/etc/pve/qemu-server/$vmid.conf"
+    fi
     echo "args: $args_line" >> "/etc/pve/qemu-server/$vmid.conf"
     
     # 写入 hostpci0 (核显)

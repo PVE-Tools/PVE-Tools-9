@@ -35,6 +35,7 @@ vm_create_snapshot() {
     local rc=$?
     [[ "$rc" -eq 2 ]] && return 0
     [[ -n "$vmids_text" ]] || return 1
+    local -a vmids
     mapfile -t vmids < <(printf '%s\n' "$vmids_text" | awk 'NF')
 
     read -p "请输入快照名称: " snapshot_name
@@ -47,9 +48,17 @@ vm_create_snapshot() {
     local success=0 failed=0 vmid
     for vmid in "${vmids[@]}"; do
         if [[ -n "$description" ]]; then
-            qm snapshot "$vmid" "$snapshot_name" --description "$description" >/dev/null 2>&1 && ((success++)) || ((failed++))
+            if qm snapshot "$vmid" "$snapshot_name" --description "$description" >/dev/null 2>&1; then
+                ((success++))
+            else
+                ((failed++))
+            fi
         else
-            qm snapshot "$vmid" "$snapshot_name" >/dev/null 2>&1 && ((success++)) || ((failed++))
+            if qm snapshot "$vmid" "$snapshot_name" >/dev/null 2>&1; then
+                ((success++))
+            else
+                ((failed++))
+            fi
         fi
     done
 

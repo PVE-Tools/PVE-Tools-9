@@ -177,7 +177,7 @@ security_restore_hardening_backups() {
 security_ssh_hardening() {
     block_non_pve9_destructive "SSH 一键加固" || return 1
 
-    local current_port new_port maxretry bantime findtime ssh_service ssh_backup="" jail_backup="" dropin_backup=""
+    local current_port new_port maxretry bantime findtime ssh_service ssh_backup="" jail_backup="" dropin_backup="" sshd_test_log
     local config_file="/etc/ssh/sshd_config"
     local jail_file="/etc/fail2ban/jail.d/pve-tools-sshd.conf"
     local dropin_file="/etc/ssh/sshd_config.d/99-pve-tools-hardening.conf"
@@ -253,12 +253,15 @@ security_ssh_hardening() {
         return 1
     fi
 
-    if ! sshd -t -f "$config_file" 2>/tmp/pve-tools-sshd-test.log; then
+    sshd_test_log="$(mktemp)"
+    if ! sshd -t -f "$config_file" 2>"$sshd_test_log"; then
         security_restore_hardening_backups "$ssh_backup" "$config_file" "$dropin_backup" "$dropin_file" "$jail_backup" "$jail_file"
-        sed 's/^/  /' /tmp/pve-tools-sshd-test.log 2>/dev/null || true
+        sed 's/^/  /' "$sshd_test_log" 2>/dev/null || true
         display_error "sshd 配置语法检查失败，已自动回滚" "请检查 $config_file。"
+        rm -f "$sshd_test_log"
         return 1
     fi
+    rm -f "$sshd_test_log"
 
     if ! security_write_fail2ban_sshd_jail "$new_port" "$maxretry" "$bantime" "$findtime"; then
         security_restore_hardening_backups "$ssh_backup" "$config_file" "$dropin_backup" "$dropin_file" "$jail_backup" "$jail_file"

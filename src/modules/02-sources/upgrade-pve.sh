@@ -38,8 +38,12 @@ pve8_to_pve9_upgrade() {
     # 确认用户要继续执行升级
     echo "您确定要继续升级吗？本次任务执行以下操作："
     echo "注意：升级过程中可能会遇到一些警告或错误，请根据提示进行处理！脚本无法处理故障提示！(脚本只能把提示扔给你..) )"
-    read -p "输入 'yesido' 确认继续，其他任意键取消: " confirm
-    if [[ "$confirm" != "yesido" ]]; then
+    if ! confirm_high_risk_action \
+        "PVE 8.x 升级到 PVE 9.x（不可逆）" \
+        "系统可能无法启动、VM/CT 配置丢失、ZFS 池损坏、网络失联。" \
+        "将更换 Debian 13 源、升级所有软件包、修改引导配置并强制重启。" \
+        "请先完成 PBS/dd 全系统备份，手动备份 /etc/pve、/var/lib/pve-cluster、/etc/network，确保有 IPMI/iDRAC/物理访问。" \
+        "yesido"; then
         log_info "已取消升级操作，明智之举"
         return 0
     fi

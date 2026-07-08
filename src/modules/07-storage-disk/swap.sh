@@ -6,9 +6,12 @@ remove_swap() {
     log_step "准备释放 Swap 空间给系统使用"
     log_warn "注意：删除 Swap 后请确保内存充足！"
     
-    echo -e "${YELLOW}您确定要删除 Swap 分区吗？${NC}"
-    read -p "输入 'yes' 确认继续，其他任意键取消: " -r
-    if [[ ! $REPLY == "yes" ]]; then
+    if ! confirm_high_risk_action \
+        "删除 Swap 分区并扩展 root 文件系统" \
+        "删除 /dev/pve/swap 逻辑卷，可能导致内存不足场景下系统不稳定。" \
+        "将执行 swapoff、lvremove、lvextend、resize2fs，不可逆。" \
+        "请确保内存充足（建议 >= 8GB），并已备份重要数据。" \
+        "CONFIRM"; then
         log_info "好的，操作已取消"
         return
     fi

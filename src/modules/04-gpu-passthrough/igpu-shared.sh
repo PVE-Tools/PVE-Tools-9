@@ -43,21 +43,12 @@ restore_igpu_config() {
     # 1. 恢复 GRUB 配置
     log_info "正在清理 GRUB 参数..."
     if [[ -f "/etc/default/grub" ]]; then
-        # 备份 GRUB 配置
-        backup_file "/etc/default/grub"
-        
-        # 移除相关参数
-        sed -i 's/intel_iommu=on//g' /etc/default/grub
-        sed -i 's/iommu=pt//g' /etc/default/grub
-        sed -i 's/i915.enable_gvt=1//g' /etc/default/grub
-        sed -i 's/i915.enable_guc=[0-9]*//g' /etc/default/grub
-        sed -i 's/i915.max_vfs=[0-9]*//g' /etc/default/grub
-        
-        # 清理多余空格
-        sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="[[:space:]]*/GRUB_CMDLINE_LINUX_DEFAULT="/g' /etc/default/grub
-        sed -i 's/[[:space:]]*"$/"/g' /etc/default/grub
-        sed -i 's/[[:space:]]\{2,\}/ /g' /etc/default/grub
-        
+        grub_remove_param "intel_iommu"
+        grub_remove_param "iommu"
+        grub_remove_param "i915.enable_gvt"
+        grub_remove_param "i915.enable_guc"
+        grub_remove_param "i915.max_vfs"
+
         log_success "GRUB 参数清理完成"
     else
         log_error "未找到 /etc/default/grub 文件"
@@ -213,13 +204,14 @@ igpu_remove() {
 
     # 恢复 GRUB 配置
     echo "恢复 GRUB 配置..."
-    backup_file "/etc/default/grub"
 
-    # 移除所有核显虚拟化参数
-    sed -i 's/intel_iommu=on//g; s/iommu=pt//g; s/i915.enable_guc=3//g; s/i915.max_vfs=7//g; s/module_blacklist=xe//g; s/i915.enable_gvt=1//g; s/pcie_acs_override=downstream,multifunction//g' /etc/default/grub
-
-    # 清理多余空格
-    sed -i 's/  */ /g' /etc/default/grub
+    grub_remove_param "intel_iommu"
+    grub_remove_param "iommu"
+    grub_remove_param "i915.enable_guc"
+    grub_remove_param "i915.max_vfs"
+    grub_remove_param "module_blacklist=xe"
+    grub_remove_param "i915.enable_gvt"
+    grub_remove_param "pcie_acs_override"
 
     update-grub
     echo -e "  ✓ GRUB 配置已恢复"

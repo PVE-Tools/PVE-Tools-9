@@ -30,6 +30,12 @@ menu_tools_about() {
     done
 }
 
+# NOTE: show_menu_rescue() intentionally calls restore_proxmoxlib() (defined in
+# 01-optimization/popup.sh) and restore_qemu_kvm() (defined in
+# 04-gpu-passthrough/intel-legacy.sh). This is a deliberate cross-module
+# dependency for the rescue/repair menu. Since all modules are sourced
+# globally, these symbols are always available. Moving to lib/ is the ideal
+# long-term approach but deferred.
 # 一键配置
 show_menu_rescue() {
     while true; do
@@ -46,9 +52,15 @@ show_menu_rescue() {
         case $choice in
             1) restore_proxmoxlib ;;
             2) restore_qemu_kvm ;;
-            3) 
-                if confirm_action "确定要清理显卡和声卡驱动的黑名单设置吗？"; then
+            3)
+                if confirm_high_risk_action \
+                    "清理驱动黑名单" \
+                    "将修改 /etc/modprobe.d/pve-blacklist.conf 并运行 update-initramfs -u -k all。" \
+                    "错误还原可能导致显卡/声卡驱动冲突或系统无法启动。" \
+                    "请确认你需要移除黑名单中的显卡和声卡驱动限制。" \
+                    "CONFIRM"; then
                     log_info "正在清理黑名单配置..."
+                    backup_file "/etc/modprobe.d/pve-blacklist.conf"
                     sed -i '/blacklist i915/d' /etc/modprobe.d/pve-blacklist.conf
                     sed -i '/blacklist snd_hda_intel/d' /etc/modprobe.d/pve-blacklist.conf
                     sed -i '/blacklist snd_hda_codec_hdmi/d' /etc/modprobe.d/pve-blacklist.conf
