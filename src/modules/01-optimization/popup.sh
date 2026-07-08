@@ -58,10 +58,8 @@ restore_proxmoxlib() {
     fi
 
     if ! reinstall_pve_webui_packages; then
-        log_error "恢复失败，请检查软件源或网络后重试"
         return 1
     fi
-    log_success "官方 Web UI 文件已恢复"
 }
 
 # 合并 local 与 local-lvm

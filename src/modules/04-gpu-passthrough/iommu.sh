@@ -35,6 +35,9 @@ enable_pass() {
     if ! grep -qw "$(echo "$iommu" | cut -d'=' -f1)" /etc/default/grub; then
         if grub_add_param "$iommu"; then
             update-grub
+        else
+            log_error "GRUB 参数添加失败，无法继续配置硬件直通"
+            return 1
         fi
         if [ `grep "vfio" /etc/modules|wc -l` = 0 ];then
             cat <<-EOF >> /etc/modules
@@ -82,6 +85,7 @@ disable_pass() {
         log_warn "您还没有配置过该项"
     else
         grub_remove_param "$iommu"
+        backup_file "/etc/modules"
         sed -i '/vfio/d' /etc/modules
         # 使用安全的配置块删除，而不是直接删除整个文件
         remove_block "/etc/modprobe.d/blacklist.conf" "HARDWARE_PASSTHROUGH"

@@ -135,13 +135,18 @@ intel_gpu_passthrough() {
 
         if [[ -s "$qemu_deb_file" ]]; then
             log_info "正在安装修改版 QEMU..."
-            dpkg -i "$qemu_deb_file"
-            rm -f "$qemu_deb_file"
-            log_success "安装完成"
+            if dpkg -i "$qemu_deb_file"; then
+                rm -f "$qemu_deb_file"
+                log_success "安装完成"
 
-            # 阻止更新
-            apt-mark hold pve-qemu-kvm
-            log_info "已锁定 pve-qemu-kvm 防止自动更新"
+                # 阻止更新
+                apt-mark hold pve-qemu-kvm
+                log_info "已锁定 pve-qemu-kvm 防止自动更新"
+            else
+                rm -f "$qemu_deb_file"
+                log_error "安装修改版 QEMU 失败，请检查 deb 包完整性"
+                return 1
+            fi
         else
             rm -f "$qemu_deb_file"
             log_error "下载失败"

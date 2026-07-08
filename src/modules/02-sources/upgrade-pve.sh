@@ -50,8 +50,12 @@ pve8_to_pve9_upgrade() {
     
     # 1. 更新当前系统到最新 PVE 8.x 版本
     log_info "更新当前系统到最新 PVE 8.x 版本..."
-    if ! apt update && apt dist-upgrade -y; then
-        log_error "更新 PVE 8.x 到最新版本失败了，请检查网络连接或源配置，或者前往作者的GitHub反馈issue.."
+    if ! apt update; then
+        log_error "apt update 失败，请检查网络连接或源配置"
+        return 1
+    fi
+    if ! apt dist-upgrade -y; then
+        log_error "apt dist-upgrade 失败，请检查软件包冲突或前往作者的GitHub反馈issue"
         return 1
     fi
     

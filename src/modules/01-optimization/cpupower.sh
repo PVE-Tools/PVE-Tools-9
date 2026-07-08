@@ -181,11 +181,13 @@ cpu_add() {
             log_warn "没有找到任何驱动，似乎你的系统不支持或驱动安装失败。"
             pause_function
         else
+            local modules_backed_up=0
             for i in $drivers; do
                 modprobe $i
                 if ! grep -qw "$i" /etc/modules; then
-                    if ! grep -q 'modbyshowtempfreq' /etc/modules 2>/dev/null; then
+                    if [[ "$modules_backed_up" -eq 0 ]]; then
                         backup_file "/etc/modules"
+                        modules_backed_up=1
                     fi
                     echo "$i" >> /etc/modules
                 fi

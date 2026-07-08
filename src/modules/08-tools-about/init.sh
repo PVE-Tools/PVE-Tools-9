@@ -60,7 +60,11 @@ show_menu_rescue() {
                     "请确认你需要移除黑名单中的显卡和声卡驱动限制。" \
                     "CONFIRM"; then
                     log_info "正在清理黑名单配置..."
-                    backup_file "/etc/modprobe.d/pve-blacklist.conf"
+                    if ! backup_file "/etc/modprobe.d/pve-blacklist.conf"; then
+                        log_error "无法备份 /etc/modprobe.d/pve-blacklist.conf，操作中止"
+                        pause_function
+                        break
+                    fi
                     sed -i '/blacklist i915/d' /etc/modprobe.d/pve-blacklist.conf
                     sed -i '/blacklist snd_hda_intel/d' /etc/modprobe.d/pve-blacklist.conf
                     sed -i '/blacklist snd_hda_codec_hdmi/d' /etc/modprobe.d/pve-blacklist.conf
