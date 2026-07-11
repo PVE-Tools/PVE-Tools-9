@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# PVE-Tools Pro v10.1.0
-# Build: 2026-07-08T07:56:40Z
+# PVE-Tools Pro v10.2.0
+# Build: 2026-07-11T12:09:24Z
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Ciriu Networks
 
@@ -11,7 +11,7 @@
 # Copyright (C) 2026 Ciriu Networks
 
 # 版本信息
-CURRENT_VERSION="10.1.0"
+CURRENT_VERSION="10.2.0"
 BUILD_NICKNAME="Evanescia"
 VERSION_FILE_URL="https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/VERSION"
 UPDATE_FILE_URL="https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/UPDATE"
@@ -1386,6 +1386,8 @@ show_menu() {
     show_menu_footer
     echo
     echo -e "  ${YELLOW}Tips: ${SESSION_TIP:-一言获取失败，本次会话不再重试。}${NC}"
+    echo -e "本项目正在收集用户意见，如您愿意，请前往填写问卷，这能帮到整个项目！"
+    echo -e "-> https://wj.qq.com/s2/27286538/9d9d/"
     echo
     echo -ne "  ${PRIMARY}请输入您的选择 [0-10]: ${NC}"
 }
