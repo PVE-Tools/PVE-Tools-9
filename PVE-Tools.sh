@@ -710,7 +710,10 @@ pve_tools_entry_uninstall_system() {
     if [[ -d "$opt_dir" ]] && pve_tools_entry_is_full_script "$opt_dir/PVE-Tools.sh"; then
         has_opt=1; found=1
     fi
-    if grep -q "^# PVE-TOOLS BEGIN $PVE_TOOLS_ALIAS_MARKER\$" "$rc_file" 2>/dev/null; then
+    # 残留的单边标记（仅 BEGIN 或仅 END）同样视为存在别名块：
+    # remove_alias_block 会拒绝不完整块的自动清理并保留恢复信息
+    if grep -q "^# PVE-TOOLS BEGIN $PVE_TOOLS_ALIAS_MARKER\$" "$rc_file" 2>/dev/null \
+        || grep -q "^# PVE-TOOLS END $PVE_TOOLS_ALIAS_MARKER\$" "$rc_file" 2>/dev/null; then
         has_alias=1; found=1
     fi
     # 首次写入别名块前的配置备份（write_alias_block 创建）属于安装器产物，卸载时一并清理
