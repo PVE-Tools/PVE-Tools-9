@@ -30,12 +30,14 @@ jobs:
           bash build.sh
           bash -n dist/PVE-Tools.sh
           
-      - name: Shellcheck (built script)
+      - name: Shellcheck (built script, error level)
         run: |
-          shellcheck -f gcc dist/PVE-Tools.sh > shellcheck_dist_results.txt || true
-          cat shellcheck_dist_results.txt || true
-          if grep -q "error\|warning" shellcheck_dist_results.txt; then
-            echo "Shellcheck found issues in built script. Please fix them before merging."
+          # 产物为全库拼接单文件：error+warning 档不可用（拼接物跨函数同名变量
+          # 误报 SC2178/SC2128，源码 warning 级风格遗留与中文文案 unicode 引号
+          # 误报会继承进产物），与源码 lib/modules 同用 error 档拦真实危险；
+          # 入口单文件维持 error+warning 严格档
+          if ! shellcheck --severity=error -f gcc dist/PVE-Tools.sh; then
+            echo "Shellcheck found errors in built script. Please fix them before merging."
             exit 1
           fi
 

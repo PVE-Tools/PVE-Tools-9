@@ -109,9 +109,10 @@ bash build.sh
 # 验证构建产物
 bash -n dist/PVE-Tools.sh
 
-# 静态检查
+# 静态检查（入口 error+warning 严格档；产物 error 档——拼接单文件的 warning
+# 档存在跨函数同名变量误报与源码风格遗留继承，档位与源码 lib/modules 对称）
 shellcheck -f gcc PVE-Tools.sh
-shellcheck -f gcc dist/PVE-Tools.sh
+shellcheck --severity=error -f gcc dist/PVE-Tools.sh
 find lib src/modules -name '*.sh' -print0 | xargs -0 shellcheck --severity=error -f gcc
 ```
 
