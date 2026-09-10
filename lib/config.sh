@@ -3,7 +3,7 @@
 # Copyright (C) 2026 Ciriu Networks
 
 # 版本信息
-CURRENT_VERSION="11.2.0"
+CURRENT_VERSION="11.2.1"
 BUILD_NICKNAME="Odette"
 VERSION_FILE_URL="https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/VERSION"
 UPDATE_FILE_URL="https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/UPDATE"

@@ -215,6 +215,7 @@ foo_menu_dispatch() {      # case 处理选项；未识别 return 1；末尾必�
 
 | 日期 | 变更 | 来源 |
 |---|---|---|
+| 2026-09-10 | 新增安装环境诊断 (doctor)：菜单 8 检测 v10 旧引导残留/无标记别名遮蔽并确认清理；入口 bin 安装后遮蔽警告 | 安装环境问题排查 |
 | 2026-08-19 | 硬件直通一键配置 (IOMMU) 新增可选增强参数：iommu=pt 与 pcie_acs_override=downstream,multifunction（强制拆分 IOMMU 组，解决 GPU 与系统盘同组时 vfio-pci 误接管系统盘问题）；关闭流程同步移除 | GitHub Issue |
 | 2026-07-26 | 交互层框架化：新增 lib/menu.sh，全部菜单迁移 run_menu；确认体系两档成文；GPU 直通 marker 统一与互斥检测；GRUB 参数函数数组化；文档按现实重写（修正入口行数/远程模式/shc 等失真）；仓库卫生清理；CI 护栏补全 | 交互层收口整理 |
 | 2026-07-08 | 项目模块化重构完成：单文件拆分为 lib/ + src/modules/（10 子模块）。新增 build.sh/dev.sh。Web/ 目录移除。 | claude-init 架构师 |

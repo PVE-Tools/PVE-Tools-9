@@ -575,6 +575,40 @@ pve_tools_entry_place_file() {
     fi
 }
 
+# bin 模式安装完成后的遮蔽检测：交互终端中别名/函数优先于 PATH 命令解析，
+# v10 时代遗留的无标记 pvetools 别名或旧引导副本会让用户继续运行失效脚本
+# （raw main 的 dist 路径自 v10.2.1 起不存在，必 404）。入口端只警告不改动，
+# 确认后的自动清理见主程序菜单 8 的「安装环境诊断」。
+pve_tools_entry_check_legacy_shadow() {
+    local rc_file="$PVE_TOOLS_INSTALL_RC_FILE"
+    local candidate="" shadow_found=0
+    local -a candidate_paths=(
+        "/usr/bin/pvetools"
+        "/bin/pvetools"
+        "/root/PVE-Tools.sh"
+        "/root/bin/pvetools"
+        "${PVE_TOOLS_INSTALL_OPT_DIR}/PVE-Tools.sh"
+    )
+
+    # 安装器标记块之外的 pvetools 别名（标记块内的由安装器自身管理，不在此列）
+    if [[ -f "$rc_file" ]] && sed "/^# PVE-TOOLS BEGIN $PVE_TOOLS_ALIAS_MARKER\$/,/^# PVE-TOOLS END $PVE_TOOLS_ALIAS_MARKER\$/d" "$rc_file" 2>/dev/null | grep -q "^[[:space:]]*alias[[:space:]]\+pvetools="; then
+        shadow_found=1
+        echo "警告：$rc_file 中存在标记块之外的 pvetools 别名，交互终端中别名优先于新装的命令生效。" >&2
+    fi
+
+    for candidate in "${candidate_paths[@]}"; do
+        [[ -f "$candidate" ]] || continue
+        if grep -q "PVE_TOOLS_REMOTE_BASE" "$candidate" 2>/dev/null; then
+            shadow_found=1
+            echo "警告：发现 v10 旧引导脚本副本 $candidate（内置下载地址已失效），建议删除。" >&2
+        fi
+    done
+
+    if [[ "$shadow_found" -eq 1 ]]; then
+        echo "提示：可运行 pvetools 后进入菜单 8 选择「安装环境诊断」自动清理残留。" >&2
+    fi
+}
+
 pve_tools_entry_install_from() {
     local source_file="$1"
     local mode="$2"
@@ -682,6 +716,9 @@ pve_tools_entry_install_from() {
         echo "命令路径：$target"
     fi
     echo "卸载方式：运行 pvetools --uninstall，或在主程序菜单 8 中选择本地脚本快捷卸载。"
+    if [[ "$mode" == "bin" ]]; then
+        pve_tools_entry_check_legacy_shadow
+    fi
     return 0
 }
 
