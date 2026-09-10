@@ -14,8 +14,11 @@ PVE_TOOLS_DOCTOR_LEGACY_URL_PATTERN="PVE_TOOLS_REMOTE_BASE"
 PVE_TOOLS_DOCTOR_ENTRY_PATTERN="PVE_TOOLS_REMOTE_DIST_URL"
 
 # 扫描结果（全局，供 fix 阶段复用）：
-# ALIAS_RC 文件清单（含无标记 pvetools 别名行，可自动清理）
+# ALIAS_RC 文件清单（含可自动清理的无标记 pvetools 别名行）
 PVE_TOOLS_DOCTOR_ALIAS_RC_FILES=()
+# 待删除的精确别名行，每项格式 "rc 文件路径<US 分隔符>别名行原文"；
+# 仅收录指向旧引导/启动器副本的行，指向其他目标的别名一律保留并提示手动处理
+PVE_TOOLS_DOCTOR_ALIAS_REMOVE=()
 # 含无标记 pvetools 函数定义的 rc 文件（结构复杂，仅提示手动处理）
 PVE_TOOLS_DOCTOR_FUNC_RC_FILES=()
 # 判定为旧引导/启动器副本的脚本文件（可自动删除）
@@ -57,34 +60,38 @@ pve_tools_doctor_resolve_rc_file() {
 }
 
 # 判定 rc 文件别名标记块状态：返回 0 = 无块或 BEGIN/END 配对完整；
-# 返回 1 = 仅存在单边标记（BEGIN 或 END 孤儿，不完整块），自动过滤与清理均应拒绝
+# 返回 1 = 标记数量不等或顺序错乱（如孤儿 END 出现在 BEGIN 之前），此时
+# 范围删除会从 BEGIN 一路波及文件尾或漏删块后内容，自动过滤与清理均应拒绝
 # （与入口安装器 pve_tools_entry_remove_alias_block / 卸载器同一守卫语义）
 pve_tools_doctor_rc_block_complete() {
     local rc_file="$1"
-    local has_begin=0 has_end=0
 
-    grep -q "^# PVE-TOOLS BEGIN $PVE_TOOLS_ALIAS_MARKER\$" "$rc_file" 2>/dev/null && has_begin=1
-    grep -q "^# PVE-TOOLS END $PVE_TOOLS_ALIAS_MARKER\$" "$rc_file" 2>/dev/null && has_end=1
-    # 与入口安装器 pve_tools_entry_remove_alias_block 同语义：单边标记即不完整
-    [[ "$has_begin" -eq "$has_end" ]]
+    # 配对 + 顺序双重校验：数量相等、首个标记为 BEGIN、末个标记为 END
+    # 才判定完整（覆盖 END 在前、标记交织等乱序形态）
+    awk -v marker="$PVE_TOOLS_ALIAS_MARKER" '
+        $0 == ("# PVE-TOOLS BEGIN " marker) { begin++; if (first == "") first = "B"; last = "B"; next }
+        $0 == ("# PVE-TOOLS END " marker)   { end++;   if (first == "") first = "E"; last = "E" }
+        END {
+            if (begin == 0 && end == 0) { exit 0 }
+            exit (begin == end && first == "B" && last == "E") ? 0 : 1
+        }
+    ' "$rc_file" 2>/dev/null
 }
 
 # 输出 rc 内容但剔除安装器标记块：标记块内的 alias 由安装器/卸载器管理，
 # doctor 只关注用户自建或历史遗留的无标记别名。
-# BEGIN/END 必须配对才剔除：END 缺失时 sed 范围会从 BEGIN 删到文件尾，
-# 把块后的无标记别名一并隐藏导致漏报；此时按原文输出，由 scan 单独告警
+# awk 状态机与 pve_tools_doctor_remove_unmarked_alias 的删除范围严格一致：
+# 「scan 能看到的块外别名」即「fix 会删的别名」。块不完整时（守卫在 scan 中
+# 先行拒绝）块内残留可能混入输出，但不参与收集与清理
 pve_tools_doctor_rc_unmarked() {
     local rc_file="$1"
 
-    if [[ ! -f "$rc_file" ]]; then
-        return 0
-    fi
-    if grep -q "^# PVE-TOOLS BEGIN $PVE_TOOLS_ALIAS_MARKER\$" "$rc_file" 2>/dev/null \
-        && grep -q "^# PVE-TOOLS END $PVE_TOOLS_ALIAS_MARKER\$" "$rc_file" 2>/dev/null; then
-        sed "/^# PVE-TOOLS BEGIN $PVE_TOOLS_ALIAS_MARKER\$/,/^# PVE-TOOLS END $PVE_TOOLS_ALIAS_MARKER\$/d" "$rc_file"
-    else
-        cat -- "$rc_file"
-    fi
+    [[ -f "$rc_file" ]] || return 0
+    awk -v marker="$PVE_TOOLS_ALIAS_MARKER" '
+        $0 == ("# PVE-TOOLS BEGIN " marker) { inblock = 1; next }
+        $0 == ("# PVE-TOOLS END " marker)   { inblock = 0; next }
+        !inblock { print }
+    ' "$rc_file" 2>/dev/null
 }
 
 # 从 alias 行提取脚本路径（取值中最后一个以 / 开头的 .sh 路径），失败输出空
@@ -99,6 +106,7 @@ pve_tools_doctor_alias_target_path() {
 # 返回 0 表示发现需处理的问题，1 表示环境干净
 pve_tools_doctor_scan() {
     PVE_TOOLS_DOCTOR_ALIAS_RC_FILES=()
+    PVE_TOOLS_DOCTOR_ALIAS_REMOVE=()
     PVE_TOOLS_DOCTOR_FUNC_RC_FILES=()
     PVE_TOOLS_DOCTOR_LEGACY_FILES=()
     PVE_TOOLS_DOCTOR_FULL_COPIES=()
@@ -140,37 +148,42 @@ pve_tools_doctor_scan() {
 
     # 检查 2：rc 文件中的无标记别名（交互 shell 中别名优先于 PATH，是遮蔽主因）
     if [[ -f "$rc_file" ]]; then
-        # 标记块不完整（仅单边标记）时无法区分托管与遗留别名，自动清理会误删托管
-        # 别名：单独告警并跳过该 rc 文件的别名/函数收集，留给用户手动处理
+        # 标记块不完整（标记缺失/数量不等/顺序错乱）时无法区分托管与遗留别名，
+        # 自动清理会误删托管别名：单独告警并跳过该 rc 文件的别名/函数收集，留给用户手动处理
         local block_incomplete=0
         if ! pve_tools_doctor_rc_block_complete "$rc_file"; then
-            echo -e "${YELLOW}[警告]${NC} ${rc_file} 中别名标记块不完整（缺 END 标记），无法区分托管与遗留别名，请手动检查该文件"
+            echo -e "${YELLOW}[警告]${NC} ${rc_file} 中别名标记块不完整（标记缺失或顺序错乱），无法区分托管与遗留别名，请手动检查该文件"
             PVE_TOOLS_DOCTOR_ISSUES=$((PVE_TOOLS_DOCTOR_ISSUES + 1))
             block_incomplete=1
         fi
         if [[ "$block_incomplete" -eq 0 ]]; then
+            # 仅指向旧引导/启动器副本的别名允许自动删除；指向完整版副本或无法
+            # 识别目标的别名可能是用户自建，只提示不删除，避免误动用户配置
+            local rc_has_removable=0
             while IFS= read -r alias_line; do
                 [[ -z "$alias_line" ]] && continue
-                if [[ ${#PVE_TOOLS_DOCTOR_ALIAS_RC_FILES[@]} -eq 0 ]]; then
-                    PVE_TOOLS_DOCTOR_ALIAS_RC_FILES+=("$rc_file")
-                fi
                 alias_target="$(pve_tools_doctor_alias_target_path "$alias_line")"
                 file_class="$(pve_tools_doctor_classify_file "$alias_target")"
                 case "$file_class" in
                     legacy-bootstrap|entry-copy)
                         echo -e "${RED}[问题]${NC} ${rc_file} 存在无标记别名指向旧脚本：${alias_line#${alias_line%%[![:space:]]*}}"
                         [[ -f "$alias_target" ]] && PVE_TOOLS_DOCTOR_LEGACY_FILES+=("$alias_target")
+                        PVE_TOOLS_DOCTOR_ALIAS_REMOVE+=("${rc_file}"$'\x1f'"${alias_line}")
+                        rc_has_removable=1
                         ;;
                     full)
-                        echo -e "${YELLOW}[警告]${NC} ${rc_file} 存在无标记别名指向完整版副本：$alias_target（别名优先于命令文件生效）"
+                        echo -e "${YELLOW}[警告]${NC} ${rc_file} 存在无标记别名指向完整版副本：$alias_target（别名优先于命令文件生效，已保留，请手动确认处理）"
                         [[ -f "$alias_target" ]] && PVE_TOOLS_DOCTOR_FULL_COPIES+=("$alias_target")
                         ;;
                     *)
-                        echo -e "${YELLOW}[警告]${NC} ${rc_file} 存在无法识别的 pvetools 别名：${alias_line#${alias_line%%[![:space:]]*}}"
+                        echo -e "${YELLOW}[警告]${NC} ${rc_file} 存在无法识别的 pvetools 别名：${alias_line#${alias_line%%[![:space:]]*}}（已保留，请手动确认处理）"
                         ;;
                 esac
                 PVE_TOOLS_DOCTOR_ISSUES=$((PVE_TOOLS_DOCTOR_ISSUES + 1))
             done < <(pve_tools_doctor_rc_unmarked "$rc_file" | grep "^[[:space:]]*alias[[:space:]]\+pvetools=" || true)
+            if [[ "$rc_has_removable" -eq 1 ]]; then
+                PVE_TOOLS_DOCTOR_ALIAS_RC_FILES+=("$rc_file")
+            fi
 
             # 检查 3：rc 文件中的 pvetools 函数定义（结构复杂，不自动清理）
             if pve_tools_doctor_rc_unmarked "$rc_file" | grep -q "^[[:space:]]*pvetools[[:space:]]*(" 2>/dev/null; then
@@ -232,31 +245,51 @@ pve_tools_doctor_scan() {
     return 0
 }
 
-# 从 rc 文件删除无标记的 pvetools 别名行（保留安装器标记块原样），原子替换并保留属主权限
+# 从 rc 文件删除扫描阶段标记为可清理的无标记 pvetools 别名行（精确整行匹配，
+# 仅限指向旧引导/启动器副本的行），保留安装器标记块与其他别名原样，
+# 原子替换并保留属主权限
 pve_tools_doctor_remove_unmarked_alias() {
-    local rc_file="$1" tmp_rc=""
+    local rc_file="$1" tmp_rc="" lines_tmp="" entry="" us=$'\x1f'
 
-    # 标记块不完整时拒绝清理：awk 的 inblock 状态会从 BEGIN 一路保持到文件尾，
+    # 标记块不完整时拒绝清理：状态机会从 BEGIN 一路保持到文件尾，
     # 块后的无标记别名删不到；且无法区分托管与遗留别名，防止误删托管内容
     if ! pve_tools_doctor_rc_block_complete "$rc_file"; then
         display_error "标记块不完整，已拒绝清理：${rc_file}" "请手动检查该文件中的别名标记块。"
         return 1
     fi
 
-    tmp_rc="$(mktemp "${rc_file}.XXXXXX")" || {
+    # 收集该文件待删除的精确别名行到临时清单；清单为空则无事可做（幂等）
+    lines_tmp="$(mktemp)" || {
         display_error "无法创建临时文件以更新 ${rc_file}"
         return 1
     }
+    for entry in "${PVE_TOOLS_DOCTOR_ALIAS_REMOVE[@]}"; do
+        [[ "${entry%%"$us"*}" == "$rc_file" ]] || continue
+        printf '%s\n' "${entry#*"$us"}" >> "$lines_tmp"
+    done
+    if [[ ! -s "$lines_tmp" ]]; then
+        rm -f -- "$lines_tmp"
+        return 0
+    fi
+
+    tmp_rc="$(mktemp "${rc_file}.XXXXXX")" || {
+        rm -f -- "$lines_tmp"
+        display_error "无法创建临时文件以更新 ${rc_file}"
+        return 1
+    }
+    # FNR==NR 先读入精确删除清单（完整匹配整行）；标记块内一律保留
     awk -v marker="$PVE_TOOLS_ALIAS_MARKER" '
+        FNR == NR { remove[$0] = 1; next }
         $0 == ("# PVE-TOOLS BEGIN " marker) { inblock = 1; print; next }
         $0 == ("# PVE-TOOLS END " marker)   { inblock = 0; print; next }
-        !inblock && /^[[:space:]]*alias[[:space:]]+pvetools=/ { next }
+        !inblock && ($0 in remove) { next }
         { print }
-    ' "$rc_file" > "$tmp_rc" || {
-        rm -f -- "$tmp_rc"
+    ' "$lines_tmp" "$rc_file" > "$tmp_rc" || {
+        rm -f -- "$lines_tmp" "$tmp_rc"
         display_error "读取配置文件失败：${rc_file}"
         return 1
     }
+    rm -f -- "$lines_tmp"
     if ! chmod --reference="$rc_file" "$tmp_rc" || ! chown --reference="$rc_file" "$tmp_rc" || ! mv -f "$tmp_rc" "$rc_file"; then
         rm -f -- "$tmp_rc"
         display_error "无法替换配置文件：${rc_file}"
@@ -268,7 +301,7 @@ pve_tools_doctor_remove_unmarked_alias() {
 pve_tools_doctor_fix() {
     if ! confirm_high_risk_action \
         "清理旧引导残留与遮蔽别名" \
-        "将删除清单中的旧引导/启动器副本文件，并从 rc 文件中删除无标记的 pvetools 别名行。" \
+        "将删除清单中的旧引导/启动器副本文件，并从 rc 文件中删除指向这些残留的无标记 pvetools 别名行（指向其他目标的别名不会自动删除）。" \
         "误删自建别名或脚本需要手动重建；rc 文件修改前会自动备份到 /var/backups/pve-tools/。" \
         "请确认清理清单只包含 PVE-Tools 相关的旧残留，不含你手动部署的其他程序。" \
         "DOCTOR-FIX"; then
