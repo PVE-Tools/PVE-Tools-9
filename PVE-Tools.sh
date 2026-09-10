@@ -13,10 +13,14 @@
 # 同时承担可选安装器职责：--install 将完整版安装为系统命令 pvetools，--uninstall 卸载；
 # 不带参数运行保持原有行为（远程模式下载完成后会交互询问是否顺便安装）。
 
-# 远程模式从 GitHub Release 资产下载构建产物（单文件完整版）。
-# 仓库 main 分支不跟踪 dist/，raw.githubusercontent.com 上没有 dist/PVE-Tools.sh，不要改回 raw 路径。
+# 远程模式从两个发布源下载构建产物（单文件完整版），顺序即优先级：
+# 1. CNB 镜像发布仓（腾讯云 CDN，国内直连快、自家可信）：main 分支同步自 GitHub，
+#    dist 分支由 CI 构建并发布单文件；
+# 2. GitHub Release 资产（海外/兜底）。
+# 仓库 main 分支不跟踪 dist/，raw 地址上没有 dist/PVE-Tools.sh，不要改回 raw 路径。
 PVE_TOOLS_RELEASE_BASE_URL="${PVE_TOOLS_RELEASE_BASE_URL:-https://github.com/PVE-Tools/PVE-Tools-9/releases}"
-PVE_TOOLS_REMOTE_MIRROR_PREFIX="${PVE_TOOLS_REMOTE_MIRROR_PREFIX:-https://ghfast.top/}"
+PVE_TOOLS_CNB_RAW_BASE="${PVE_TOOLS_CNB_RAW_BASE:-https://cnb.cool/PVE-Tools/PVE-Tools-Pro/-/git/raw}"
+PVE_TOOLS_CNB_DIST_URL="${PVE_TOOLS_CNB_DIST_URL:-$PVE_TOOLS_CNB_RAW_BASE/dist/PVE-Tools.sh}"
 PVE_TOOLS_REMOTE_DIST_URL="${PVE_TOOLS_REMOTE_DIST_URL:-$PVE_TOOLS_RELEASE_BASE_URL/latest/download/PVE-Tools.sh}"
 PVE_TOOLS_CONNECT_TIMEOUT="${PVE_TOOLS_CONNECT_TIMEOUT:-10}"
 PVE_TOOLS_DOWNLOAD_TIMEOUT="${PVE_TOOLS_DOWNLOAD_TIMEOUT:-120}"
@@ -205,27 +209,21 @@ pve_tools_entry_download_file() {
     local output="$2"
     local output_dir=""
     local part_file="${output}.part"
-    local mirror_url=""
     local downloaded_bytes=""
     local download_status=0
     local index=0
     local source_count=0
     local source_name=""
     local source_url=""
-    local -a source_names=("GitHub 原始源")
-    local -a source_urls=("$url")
+    # 顺序即优先级：CNB（腾讯 CDN）国内快且自家可信，GitHub Releases 海外/兜底
+    local -a source_names=("CNB 国内源" "GitHub Releases")
+    local -a source_urls=("$PVE_TOOLS_CNB_DIST_URL" "$url")
 
     output_dir="$(dirname "$output")"
     if ! mkdir -p "$output_dir"; then
         PVE_TOOLS_ENTRY_LAST_ERROR="无法创建临时下载目录：$output_dir"
         echo "错误：$PVE_TOOLS_ENTRY_LAST_ERROR" >&2
         return 1
-    fi
-
-    if [[ -n "$PVE_TOOLS_REMOTE_MIRROR_PREFIX" && "$url" != "${PVE_TOOLS_REMOTE_MIRROR_PREFIX}"* ]]; then
-        mirror_url="${PVE_TOOLS_REMOTE_MIRROR_PREFIX}${url}"
-        source_names+=("GitHub 加速源")
-        source_urls+=("$mirror_url")
     fi
 
     if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
@@ -284,13 +282,13 @@ pve_tools_entry_print_release_help() {
     cat >&2 <<EOF
 
 错误：PVE-Tools 主程序单文件完整版下载失败，程序尚未启动。
-以上 GitHub 原始源和加速源均未能完成下载。
+以上 CNB 国内源和 GitHub Release 源均未能完成下载。
 
-请在另一台能够访问 GitHub 的设备或网络中打开：
+请先检查主机网络，然后任选以下地址手动下载（请勿下载 Source code 的 zip 或 tar.gz 压缩包）：
+CNB 国内源：
+$PVE_TOOLS_CNB_DIST_URL
+GitHub Releases（展开 Assets，下载 PVE-Tools.sh）：
 $PVE_TOOLS_RELEASE_PAGE_URL
-
-展开 Assets，下载 PVE-Tools.sh（请勿下载 Source code 的 zip 或 tar.gz 压缩包）。
-直接下载地址：$PVE_TOOLS_RELEASE_ASSET_URL
 
 下载后可通过 SCP、WinSCP 或 U 盘传到 PVE 主机，然后执行：
   chmod +x PVE-Tools.sh

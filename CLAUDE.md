@@ -10,7 +10,7 @@ PVE Tools Pro 是一个面向 Proxmox VE 9.x 的交互式 Bash 运维工具集�
 
 项目自 v9.0.0 完成模块化重构：单一 14000+ 行脚本拆分为基础设施层（lib/）与功能模块层（src/modules/），通过 build.sh 组装为单文件发布，用户侧零感知。交互层统一收口到 `lib/menu.sh` 菜单框架。
 
-- **入口层**: `PVE-Tools.sh`（约 330 行）-- 本地开发时按固定顺序 source lib/ 与 src/modules/（各模块 init.sh 显式优先）；远程 curl 运行时从 GitHub Releases（`releases/latest/download/PVE-Tools.sh`）下载构建产物执行，带重试/限速/校验/原子落盘守护。
+- **入口层**: `PVE-Tools.sh`（约 350 行）-- 本地开发时按固定顺序 source lib/ 与 src/modules/（各模块 init.sh 显式优先）；远程 curl 运行时从 CNB 国内源（腾讯 CDN）与 GitHub Releases 双源下载构建产物执行（CNB 优先、GitHub 兜底），带重试/限速/校验/原子落盘守护。
 - **基础设施层**: `lib/` -- 全局变量(config.sh)、日志/UI/确认/备份/GRUB(core.sh)、菜单交互框架(menu.sh)、网络检测/镜像选择(network.sh)、运行时守卫与主循环(runtime.sh)。
 - **功能模块层**: `src/modules/` -- 11 个子目录对应主菜单 1-11 项，每个子目录内按功能拆分文件（init.sh 为菜单入口）。
 - **构建系统**: `build.sh` 按顺序拼接 lib/*.sh + src/modules/**/*.sh 为 `dist/PVE-Tools.sh`（gitignore，CI 构建）；`dev.sh` 直接 source 全部源码供开发调试。
@@ -215,6 +215,7 @@ foo_menu_dispatch() {      # case 处理选项；未识别 return 1；末尾必�
 
 | 日期 | 变更 | 来源 |
 |---|---|---|
+| 2026-09-10 | 发版链路迁移腾讯 CNB 双源架构：入口/自更新 CNB 优先 + GitHub 兜底，移除 ghfast 依赖；新增 .cnb.yml 发布流水线（ci/cnb-publish.sh） | CNB 迁移计划 |
 | 2026-09-10 | 新增安装环境诊断 (doctor)：菜单 8 检测 v10 旧引导残留/无标记别名遮蔽并确认清理；入口 bin 安装后遮蔽警告 | 安装环境问题排查 |
 | 2026-08-19 | 硬件直通一键配置 (IOMMU) 新增可选增强参数：iommu=pt 与 pcie_acs_override=downstream,multifunction（强制拆分 IOMMU 组，解决 GPU 与系统盘同组时 vfio-pci 误接管系统盘问题）；关闭流程同步移除 | GitHub Issue |
 | 2026-07-26 | 交互层框架化：新增 lib/menu.sh，全部菜单迁移 run_menu；确认体系两档成文；GPU 直通 marker 统一与互斥检测；GRUB 参数函数数组化；文档按现实重写（修正入口行数/远程模式/shc 等失真）；仓库卫生清理；CI 护栏补全 | 交互层收口整理 |

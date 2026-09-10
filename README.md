@@ -31,9 +31,13 @@ bash <(curl -sSL https://pve.u3u.icu/PVE-Tools.sh)
 ```
 
 ### 中国大陆网络
+
 ```bash
-bash <(curl -sSL https://ghfast.top/https://github.com/PVE-Tools/PVE-Tools-9/releases/latest/download/PVE-Tools.sh)
+# CNB 腾讯 CDN 直链（国内直连快）
+bash <(curl -sSL https://cnb.cool/PVE-Tools/PVE-Tools-Pro/-/git/raw/dist/PVE-Tools.sh)
 ```
+
+> 提示：通过 Cloudflare 短域名运行时，入口脚本会自动优先从 CNB 国内源下载主程序，GitHub 兜底，无需手动选择。
 
 ### 国际网络
 ```bash

@@ -3,13 +3,19 @@
 # Copyright (C) 2026 Ciriu Networks
 
 # 版本信息
-CURRENT_VERSION="11.2.1"
+CURRENT_VERSION="11.3.0"
 BUILD_NICKNAME="Odette"
 VERSION_FILE_URL="https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/VERSION"
 UPDATE_FILE_URL="https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/UPDATE"
 # 自更新必须下载 Release 资产（构建产物单文件完整版）。
 # raw main 上的 PVE-Tools.sh 只是 300 行引导入口，不含 CURRENT_VERSION，用它自更新永远过不了校验。
 PVE_TOOLS_SCRIPT_URL="https://github.com/PVE-Tools/PVE-Tools-9/releases/latest/download/PVE-Tools.sh"
+# CNB 镜像发布仓（腾讯云 CDN，国内直连快）：raw 直链格式 /-/git/raw/<分支>/<路径>。
+# main 分支同步自 GitHub；dist 分支由 CI 构建并发布单文件（自更新国内首选源）。
+PVE_TOOLS_CNB_RAW_BASE="https://cnb.cool/PVE-Tools/PVE-Tools-Pro/-/git/raw"
+VERSION_FILE_URL_CNB="${PVE_TOOLS_CNB_RAW_BASE}/main/VERSION"
+UPDATE_FILE_URL_CNB="${PVE_TOOLS_CNB_RAW_BASE}/main/UPDATE"
+PVE_TOOLS_SCRIPT_URL_CNB="${PVE_TOOLS_CNB_RAW_BASE}/dist/PVE-Tools.sh"
 PVE_VERSION_DETECTED=""
 PVE_MAJOR_VERSION=""
 RISK_ACK_BYPASS=false
@@ -225,6 +231,10 @@ MIRROR_SELECTED_CEPH=-1
 MIRROR_SELECTED_CT=-1
 
 # 自动更新网络检测配置
+# USE_MIRROR_FOR_UPDATE 语义：1 = 国内网络（detect_network_region 探测或用户设置），
+# 更新链路优先走 CNB 国内源。
+# GITHUB_MIRROR_PREFIX 仅作第三方内容（插件市场/fastpve）的 GitHub raw 加速，
+# 主程序更新链路已改用 CNB，不再依赖 ghfast 代理。
 CF_TRACE_URL="https://www.cloudflare.com/cdn-cgi/trace"
 GITHUB_MIRROR_PREFIX="https://ghfast.top/"
 USE_MIRROR_FOR_UPDATE=0
