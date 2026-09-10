@@ -1,0 +1,28 @@
+# GitHub main → CNB 镜像仓自动同步：合并到 main 后自动把代码推到
+# cnb.cool/PVE-Tools/PVE-Tools-Pro，触发其 .cnb.yml 流水线构建并发布 dist。
+# 使用 CNB 官方 git-sync 插件（https://cnb.cool/cnb/plugins/tencentcom/git-sync）。
+# 前置配置：upstream 仓库 Settings → Secrets and variables → Actions
+#   新增 secret CNB_SYNC_TOKEN，值为 CNB 访问令牌（需 repo-code 写权限）。
+name: Sync to CNB
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Sync to CNB Repository
+        uses: docker://tencentcom/git-sync
+        env:
+          PLUGIN_TARGET_URL: "https://cnb.cool/PVE-Tools/PVE-Tools-Pro.git"
+          PLUGIN_AUTH_TYPE: "https"
+          PLUGIN_USERNAME: "cnb"
+          PLUGIN_PASSWORD: ${{ secrets.CNB_SYNC_TOKEN }}
+          PLUGIN_BRANCH: "main"
+          PLUGIN_FORCE: "true"

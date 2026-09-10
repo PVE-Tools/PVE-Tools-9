@@ -588,15 +588,31 @@ pve_tools_entry_check_legacy_shadow() {
         "${PVE_TOOLS_INSTALL_OPT_DIR}/PVE-Tools.sh"
     )
 
-    # 安装器标记块之外的 pvetools 别名（标记块内的由安装器自身管理，不在此列）
-    if [[ -f "$rc_file" ]] && sed "/^# PVE-TOOLS BEGIN $PVE_TOOLS_ALIAS_MARKER\$/,/^# PVE-TOOLS END $PVE_TOOLS_ALIAS_MARKER\$/d" "$rc_file" 2>/dev/null | grep -q "^[[:space:]]*alias[[:space:]]\+pvetools="; then
-        shadow_found=1
-        echo "警告：$rc_file 中存在标记块之外的 pvetools 别名，交互终端中别名优先于新装的命令生效。" >&2
+    # 安装器标记块之外的 pvetools 别名（标记块内的由安装器自身管理，不在此列）。
+    # 先校验 BEGIN/END 配对：END 缺失时 sed 范围会从 BEGIN 删到文件尾，
+    # 把块后的无标记别名一并滤掉导致漏报；此时改用未过滤的 rc 原文检测并单独提示。
+    if [[ -f "$rc_file" ]]; then
+        if grep -q "^# PVE-TOOLS BEGIN $PVE_TOOLS_ALIAS_MARKER\$" "$rc_file" 2>/dev/null \
+            && ! grep -q "^# PVE-TOOLS END $PVE_TOOLS_ALIAS_MARKER\$" "$rc_file" 2>/dev/null; then
+            shadow_found=1
+            echo "警告：$rc_file 中别名标记块不完整（缺 END 标记），请运行主程序菜单 8 的「安装环境诊断」检查。" >&2
+            if grep -q "^[[:space:]]*alias[[:space:]]\+pvetools=" "$rc_file" 2>/dev/null; then
+                echo "警告：$rc_file 中存在 pvetools 别名（标记块不完整，未过滤），交互终端中别名优先于新装的命令生效。" >&2
+            fi
+        elif sed "/^# PVE-TOOLS BEGIN $PVE_TOOLS_ALIAS_MARKER\$/,/^# PVE-TOOLS END $PVE_TOOLS_ALIAS_MARKER\$/d" "$rc_file" 2>/dev/null | grep -q "^[[:space:]]*alias[[:space:]]\+pvetools="; then
+            shadow_found=1
+            echo "警告：$rc_file 中存在标记块之外的 pvetools 别名，交互终端中别名优先于新装的命令生效。" >&2
+        fi
     fi
 
     for candidate in "${candidate_paths[@]}"; do
         [[ -f "$candidate" ]] || continue
-        if grep -q "PVE_TOOLS_REMOTE_BASE" "$candidate" 2>/dev/null; then
+        # 完整版副本（含 CURRENT_VERSION）是新版安装/托管的合法产物，不是旧引导残留
+        if pve_tools_entry_is_full_script "$candidate"; then
+            continue
+        fi
+        # 仅匹配 v10 引导专用的变量定义行，避免命中注释等无关出现位置
+        if grep -q "^[[:space:]]*PVE_TOOLS_REMOTE_BASE=" "$candidate" 2>/dev/null; then
             shadow_found=1
             echo "警告：发现 v10 旧引导脚本副本 $candidate（内置下载地址已失效），建议删除。" >&2
         fi
