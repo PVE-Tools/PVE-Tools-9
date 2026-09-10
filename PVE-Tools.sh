@@ -215,7 +215,7 @@ pve_tools_entry_download_file() {
     local source_name=""
     local source_url=""
     # 顺序即优先级：CNB（腾讯 CDN）国内快且自家可信，GitHub Releases 海外/兜底
-    local -a source_names=("CNB 国内源" "GitHub Releases")
+    local -a source_names=("CNB.COOL 国内源" "GitHub Releases")
     local -a source_urls=("$PVE_TOOLS_CNB_DIST_URL" "$url")
 
     output_dir="$(dirname "$output")"
@@ -239,6 +239,9 @@ pve_tools_entry_download_file() {
         rm -f -- "$part_file"
 
         echo "[$((index + 1))/$source_count] 正在通过${source_name}下载主程序完整版..."
+        echo ""
+        echo "感谢 CNB.cool，为项目提供稳定可靠的分发服务。—— 会写代码就会 CNB。"
+        echo ""
         echo "下载地址：$source_url"
 
         if command -v curl >/dev/null 2>&1; then
