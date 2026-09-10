@@ -30,17 +30,24 @@
 
 ---
 ### 🚪 Let's get started right away
-#### 中国大陆网络
-<div style="padding: 10px; background-color: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
-  <strong>⚠️ 警告：</strong> 请不要多次拉取文件，无论镜像站还是源站。否则会被服务器拒绝导致影响心情。
-</div>
+
+Paste in the PVE terminal (Proxmox VE 9.0+, run as root). The launcher bootstraps the full program from Tencent CNB CDN (China-direct) with GitHub Releases as fallback:
 
 ```
-bash <(curl -sSL https://ghfast.top/github.com/PVE-Tools/PVE-Tools-9/blob/main/PVE-Tools.sh)
+bash <(curl -sSL https://pve.u3u.icu/PVE-Tools.sh)                                          # short-domain entry
+bash <(curl -sSL https://cnb.cool/PVE-Tools/PVE-Tools-Pro/-/git/raw/main/PVE-Tools.sh)      # CNB direct (China)
+bash <(curl -sSL https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/PVE-Tools.sh) # international
 ```
-#### 国际网络
-```
-bash <(curl -sSL https://github.com/PVE-Tools/PVE-Tools-9/blob/main/PVE-Tools.sh)
+
+**Quick try**: press Enter to launch once, nothing is left on the system.
+
+**Install as a system command (recommended)**: choose `[2] Install to system` or append `--install`, then use `pvetools` directly:
+
+```bash
+bash <(curl -sSL https://pve.u3u.icu/PVE-Tools.sh) --install
+pvetools              # launch
+pvetools --help       # help
+pvetools --uninstall  # uninstall and clean up /opt/pve-tools, logs, backups and aliases
 ```
 
 ---
@@ -100,15 +107,15 @@ PVE Tools Pro is a one-click configuration tool specifically designed for **Prox
 
 #### Installation & Usage
 
+Paste in the PVE terminal (Proxmox VE 9.0+, root required):
+
 ```bash
-# 1. Download the script
-wget https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/PVE-Tools.sh
+# Quick try: launch once via the launcher
+bash <(curl -sSL https://pve.u3u.icu/PVE-Tools.sh)
 
-# 2. Add execution permission
-chmod +x PVE-Tools.sh
-
-# 3. Run the script
-sudo ./PVE-Tools.sh
+# Or install as a system command, then just run `pvetools`
+bash <(curl -sSL https://pve.u3u.icu/PVE-Tools.sh) --install
+pvetools
 ```
 
 After running the script, you'll see a menu with the following options:
