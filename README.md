@@ -10,7 +10,7 @@
 [![Debian](https://img.shields.io/badge/Debian-13%20(Trixie)-A81D33?logo=debian&logoColor=white)](https://www.debian.org/)
 [![Release](https://img.shields.io/badge/Release-v11.3.1-orange)](https://github.com/PVE-Tools/PVE-Tools-9/releases)
 
-<img src="./images/cover.svg" width="100%" alt="PVE Tools Pro" />
+<img src="./images/main.png" width="100%" alt="PVE Tools Pro" />
 
 </div>
 
@@ -29,10 +29,6 @@
 
 | 高级教程 | [![数据恢复](https://img.shields.io/badge/教程-数据恢复-red)](https://pve.u3u.icu/tutorial/data-recovery-after-mistake) | [![宿主机网络](https://img.shields.io/badge/教程-网络防火墙-yellow)](https://pve.u3u.icu/tutorial/host-network-firewall-ipv6) | [![VM 运维](https://img.shields.io/badge/教程-VM%20运维-9cf)](https://pve.u3u.icu/tutorial/vm-backup-migration-cloudinit) |
 |:-:|:-:|:-:|:-:|
-
-| 其它语言 | [![English](https://img.shields.io/badge/README-English-blue)](./Docs/README-EN.md) |
-|:-:|:-:|
-
 ---
 
 ## 快速开始
@@ -127,8 +123,7 @@ chmod +x PVE-Tools.sh && bash PVE-Tools.sh
 - [腾讯 CNB.cool](https://docs.cnb.cool) 为项目提供稳定可靠的国内分发服务，没有国内 CDN，国内用户的下载体验根本没法看.
 
 <div align="center">
-
-![CNB.COOL](https://docs.cnb.cool/images/logo/svg/Horizontal-Black-Domestic-SaaS.svg)
+<img src="https://docs.cnb.cool/images/logo/svg/Horizontal-Black-Domestic-SaaS.svg" width="50%" alt="CDN" />
 
 **不过最最重要的，还是需要感谢屏幕前的你哦~**
 
