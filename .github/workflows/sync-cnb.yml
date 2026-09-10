@@ -11,6 +11,11 @@ on:
   push:
     branches: [main]
 
+# GitHub Actions 最小权限：本 workflow 对 GitHub 只读（拉取完整历史），
+# 推送目标在 CNB 侧，凭据走 CNB_SYNC_TOKEN 环境变量
+permissions:
+  contents: read
+
 # 分支级串行 + 取消进行中的旧运行：防止陈旧同步覆盖较新的 CNB 状态
 concurrency:
   group: sync-cnb-main
@@ -20,9 +25,12 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # 固定到 v4 标签当前指向的 commit SHA，杜绝 tag 漂移供应链风险
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+          # 同步只需读取仓库，无需在 runner 上持久化 GitHub 凭据
+          persist-credentials: false
 
       - name: Sync to CNB Repository
         uses: docker://tencentcom/git-sync@sha256:b7c4672616ddea5b89948dcd034610b29d37d8430e74b4bc83b421c963c25f77

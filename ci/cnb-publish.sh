@@ -27,9 +27,10 @@ fi
 echo "== 构建与语法校验 =="
 bash build.sh
 # 逐个源文件与产物都做语法检查（build.sh 只拼接不校验，源文件语法错误需在此拦下）
-for src_file in PVE-Tools.sh lib/*.sh src/modules/*/*.sh; do
+# find + -print0 递归覆盖所有层级的 shell 脚本，文件名带空格也安全
+while IFS= read -r -d '' src_file; do
     bash -n "$src_file" || { echo "语法检查失败：$src_file"; exit 1; }
-done
+done < <(find PVE-Tools.sh lib src/modules -type f -name '*.sh' -print0)
 bash -n dist/PVE-Tools.sh
 
 echo "== 版本一致性 =="
