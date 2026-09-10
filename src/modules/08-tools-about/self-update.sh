@@ -96,7 +96,7 @@ check_update() {
 pve_tools_local_update() {
     # 用 $0 定位实际入口脚本（dist 单文件 / launcher），而非被 source 的模块文件
     local current_script="$0"
-    local resolved_script backup_dir backup_path tmp_script update_urls prefer_cnb version_url update_url script_url version_fb_url update_fb_url script_fb_url
+    local resolved_script backup_dir backup_path tmp_script update_urls prefer_cnb version_url update_url script_url version_fb_url update_fb_url script_fb_url version_source_url tmp_swap
     local remote_content remote_version detailed_changelog downloaded_version
 
     if [[ -z "$current_script" || ! -f "$current_script" ]]; then
@@ -112,9 +112,13 @@ pve_tools_local_update() {
 
     update_urls="$(pve_tools_choose_update_urls)"
     IFS='|' read -r prefer_cnb version_url update_url script_url version_fb_url update_fb_url script_fb_url <<< "$update_urls"
+    # 记录 remote_version 的实际来源：版本文件与脚本必须来自同一源组，
+    # 避免两源发版节奏不同步时跨源混搭出不一致的版本/脚本组合
+    version_source_url="$version_url"
     remote_content="$(pve_tools_download_url "$version_url" 15)"
     if [[ -z "$remote_content" ]]; then
         log_warn "首选源版本文件获取失败，尝试备用源。"
+        version_source_url="$version_fb_url"
         remote_content="$(pve_tools_download_url "$version_fb_url" 15)"
     fi
 
@@ -161,6 +165,14 @@ pve_tools_local_update() {
     if [[ "$confirm" != "yes" && "$confirm" != "YES" ]]; then
         log_info "已取消脚本更新。"
         return 0
+    fi
+
+    # 版本来自备用源组时，交换首选/备用脚本地址，让同源脚本地址先试
+    # （下方下载逻辑保持不变，始终先试 script_url 后试 script_fb_url）
+    if [[ "$version_source_url" == "$version_fb_url" ]]; then
+        tmp_swap="$script_url"
+        script_url="$script_fb_url"
+        script_fb_url="$tmp_swap"
     fi
 
     backup_dir="/var/backups/pve-tools"

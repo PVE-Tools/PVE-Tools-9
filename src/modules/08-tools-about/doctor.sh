@@ -29,16 +29,17 @@ PVE_TOOLS_DOCTOR_FULL_COPIES=()
 PVE_TOOLS_DOCTOR_ISSUES=0
 
 # 分类脚本文件：full=完整版 / legacy-bootstrap=v10 旧引导（死链） /
-# entry-copy=新版启动器副本 / other=无法识别 / missing=不存在
+# entry-copy=新版启动器副本 / other=无法识别 / missing=不存在。
+# 引导/启动器特征均锚定为行首赋值语句，避免注释、字符串等无关出现位置误判
 pve_tools_doctor_classify_file() {
     local file_path="$1"
 
     [[ -f "$file_path" ]] || { echo "missing"; return; }
     if grep -q '^CURRENT_VERSION=' "$file_path" 2>/dev/null; then
         echo "full"
-    elif grep -q "$PVE_TOOLS_DOCTOR_LEGACY_URL_PATTERN" "$file_path" 2>/dev/null; then
+    elif grep -q "^[[:space:]]*${PVE_TOOLS_DOCTOR_LEGACY_URL_PATTERN}=" "$file_path" 2>/dev/null; then
         echo "legacy-bootstrap"
-    elif grep -q "$PVE_TOOLS_DOCTOR_ENTRY_PATTERN" "$file_path" 2>/dev/null; then
+    elif grep -q "^[[:space:]]*${PVE_TOOLS_DOCTOR_ENTRY_PATTERN}=" "$file_path" 2>/dev/null; then
         echo "entry-copy"
     else
         echo "other"
@@ -52,11 +53,14 @@ pve_tools_doctor_resolve_rc_file() {
 
     pve_tools_load_installer_meta
     if [[ -n "${PVE_TOOLS_RC_FILE:-}" ]]; then
-        echo "$PVE_TOOLS_RC_FILE"
-        return
+        rc_file="$PVE_TOOLS_RC_FILE"
+    else
+        rc_file="$(getent passwd root 2>/dev/null | cut -d: -f6)"
+        rc_file="${rc_file:-/root}/.bashrc"
     fi
-    rc_file="$(getent passwd root 2>/dev/null | cut -d: -f6)"
-    echo "${rc_file:-/root}/.bashrc"
+    # rc 文件可能是指向真实配置的符号链接（如 dotfiles 托管）：解析到真实目标，
+    # 后续备份、读取与替换都落在目标文件上，避免 mv 把链接替换成普通文件
+    readlink -f -- "$rc_file" 2>/dev/null || echo "$rc_file"
 }
 
 # 判定 rc 文件别名标记块状态：返回 0 = 无块或 BEGIN/END 配对完整；
@@ -143,6 +147,7 @@ pve_tools_doctor_scan() {
             ;;
         *)
             echo -e "${YELLOW}[警告]${NC} $PVE_TOOLS_BIN_PATH 存在但无法识别为 PVE-Tools 文件，已跳过"
+            PVE_TOOLS_DOCTOR_ISSUES=$((PVE_TOOLS_DOCTOR_ISSUES + 1))
             ;;
     esac
 
@@ -185,8 +190,9 @@ pve_tools_doctor_scan() {
                 PVE_TOOLS_DOCTOR_ALIAS_RC_FILES+=("$rc_file")
             fi
 
-            # 检查 3：rc 文件中的 pvetools 函数定义（结构复杂，不自动清理）
-            if pve_tools_doctor_rc_unmarked "$rc_file" | grep -q "^[[:space:]]*pvetools[[:space:]]*(" 2>/dev/null; then
+            # 检查 3：rc 文件中的 pvetools 函数定义（结构复杂，不自动清理）。
+            # 兼容 pvetools() 与 function pvetools() 两种声明形态
+            if pve_tools_doctor_rc_unmarked "$rc_file" | grep -qE '^[[:space:]]*(function[[:space:]]+)?pvetools[[:space:]]*\(' 2>/dev/null; then
                 echo -e "${YELLOW}[警告]${NC} ${rc_file} 存在 pvetools 函数定义，会遮蔽命令文件，请手动确认处理"
                 PVE_TOOLS_DOCTOR_FUNC_RC_FILES+=("$rc_file")
                 PVE_TOOLS_DOCTOR_ISSUES=$((PVE_TOOLS_DOCTOR_ISSUES + 1))
@@ -207,9 +213,13 @@ pve_tools_doctor_scan() {
     for file_path in "${candidate_paths[@]}"; do
         [[ -f "$file_path" ]] || continue
         [[ "$file_path" == "$PVE_TOOLS_BIN_PATH" ]] && continue
-        # alias 模式的托管目标：rc 标记块完整（安装处于托管状态）且文件确为完整版时
-        # 是合法安装产物，不作为残留/多副本上报；其余情况按普通候选处理
+        # alias 模式的托管目标：rc 中存在配对完整的托管标记块（安装确实处于
+        # alias 托管状态）且文件确为完整版时，是合法安装产物，不作为残留/多副本
+        # 上报；其余情况按普通候选处理。仅凭 rc_block_complete 不够——它对"完全
+        # 无块"的 rc 也返回 0，会把无托管关系的孤儿副本错误豁免
         if [[ "$file_path" == "${PVE_TOOLS_OPT_DIR}/PVE-Tools.sh" ]] \
+            && grep -q "^# PVE-TOOLS BEGIN $PVE_TOOLS_ALIAS_MARKER\$" "$rc_file" 2>/dev/null \
+            && grep -q "^# PVE-TOOLS END $PVE_TOOLS_ALIAS_MARKER\$" "$rc_file" 2>/dev/null \
             && pve_tools_doctor_rc_block_complete "$rc_file" \
             && grep -q '^CURRENT_VERSION=' "$file_path" 2>/dev/null; then
             echo -e "${GREEN}[正常]${NC} alias 托管副本 $file_path 为完整版 (v$(grep -m1 '^CURRENT_VERSION=' "$file_path" | cut -d'"' -f2))"
@@ -231,6 +241,7 @@ pve_tools_doctor_scan() {
                 if [[ ! " ${PVE_TOOLS_DOCTOR_FULL_COPIES[*]} " == *" $file_path "* ]]; then
                     echo -e "${YELLOW}[提示]${NC} 存在另一份完整版副本：$file_path（多份共存时升级可能只更新其中一份）"
                     PVE_TOOLS_DOCTOR_FULL_COPIES+=("$file_path")
+                    PVE_TOOLS_DOCTOR_ISSUES=$((PVE_TOOLS_DOCTOR_ISSUES + 1))
                 fi
                 ;;
         esac

@@ -577,6 +577,24 @@ pve_tools_entry_place_file() {
 # v10 时代遗留的无标记 pvetools 别名或旧引导副本会让用户继续运行失效脚本
 # （raw main 的 dist 路径自 v10.2.1 起不存在，必 404）。入口端只警告不改动，
 # 确认后的自动清理见主程序菜单 8 的「安装环境诊断」。
+# 校验 rc 文件中安装器标记块配对与顺序（与 doctor 的
+# pve_tools_doctor_rc_block_complete 同语义）：数量相等、首个标记为 BEGIN、
+# 末个标记为 END 才算完整。仅比较标记存在性会漏判乱序形态（END 在前、
+# BEGIN 多于 END），此时 sed 范围会从 BEGIN 一路删到文件尾，把块后的
+# 无标记别名一并滤掉导致漏报
+pve_tools_entry_rc_block_complete() {
+    local rc_file="$1"
+
+    awk -v marker="$PVE_TOOLS_ALIAS_MARKER" '
+        $0 == ("# PVE-TOOLS BEGIN " marker) { begin++; if (first == "") first = "B"; last = "B"; next }
+        $0 == ("# PVE-TOOLS END " marker)   { end++;   if (first == "") first = "E"; last = "E" }
+        END {
+            if (begin == 0 && end == 0) { exit 0 }
+            exit (begin == end && first == "B" && last == "E") ? 0 : 1
+        }
+    ' "$rc_file" 2>/dev/null
+}
+
 pve_tools_entry_check_legacy_shadow() {
     local rc_file="$PVE_TOOLS_INSTALL_RC_FILE"
     local candidate="" shadow_found=0
@@ -589,13 +607,12 @@ pve_tools_entry_check_legacy_shadow() {
     )
 
     # 安装器标记块之外的 pvetools 别名（标记块内的由安装器自身管理，不在此列）。
-    # 先校验 BEGIN/END 配对：END 缺失时 sed 范围会从 BEGIN 删到文件尾，
+    # 先校验标记块配对与顺序：乱序/缺标记时 sed 范围可能从 BEGIN 删到文件尾，
     # 把块后的无标记别名一并滤掉导致漏报；此时改用未过滤的 rc 原文检测并单独提示。
     if [[ -f "$rc_file" ]]; then
-        if grep -q "^# PVE-TOOLS BEGIN $PVE_TOOLS_ALIAS_MARKER\$" "$rc_file" 2>/dev/null \
-            && ! grep -q "^# PVE-TOOLS END $PVE_TOOLS_ALIAS_MARKER\$" "$rc_file" 2>/dev/null; then
+        if ! pve_tools_entry_rc_block_complete "$rc_file"; then
             shadow_found=1
-            echo "警告：$rc_file 中别名标记块不完整（缺 END 标记），请运行主程序菜单 8 的「安装环境诊断」检查。" >&2
+            echo "警告：$rc_file 中别名标记块不完整（标记缺失或顺序错乱），请运行主程序菜单 8 的「安装环境诊断」检查。" >&2
             if grep -q "^[[:space:]]*alias[[:space:]]\+pvetools=" "$rc_file" 2>/dev/null; then
                 echo "警告：$rc_file 中存在 pvetools 别名（标记块不完整，未过滤），交互终端中别名优先于新装的命令生效。" >&2
             fi

@@ -24,8 +24,12 @@ fi
 # ---------------------------------------------------------------------------
 # 构建与基础校验
 # ---------------------------------------------------------------------------
-echo "== 构建 dist 单文件 =="
+echo "== 构建与语法校验 =="
 bash build.sh
+# 逐个源文件与产物都做语法检查（build.sh 只拼接不校验，源文件语法错误需在此拦下）
+for src_file in PVE-Tools.sh lib/*.sh src/modules/*/*.sh; do
+    bash -n "$src_file" || { echo "语法检查失败：$src_file"; exit 1; }
+done
 bash -n dist/PVE-Tools.sh
 
 echo "== 版本一致性 =="
@@ -61,24 +65,34 @@ if grep -nE '^[[:space:]]*(source|\.)[[:space:]]' dist/PVE-Tools.sh; then
     exit 1
 fi
 
-echo "== shellcheck（环境可用时执行）=="
-# CNB 容器镜像可能未预装 shellcheck；缺失时跳过，GitHub PR Validation 仍会执行完整检查兜底
-if command -v shellcheck >/dev/null 2>&1; then
-    shellcheck -f gcc PVE-Tools.sh > /tmp/shellcheck_entry.out || true
-    cat /tmp/shellcheck_entry.out || true
-    if grep -q "error\|warning" /tmp/shellcheck_entry.out; then
-        echo "shellcheck 在入口脚本发现 error/warning"
-        exit 1
+echo "== shellcheck（缺失时自动安装，仍缺失则拒绝发布）=="
+# 发布门禁 fail-closed：shellcheck 不可用时先尝试自动安装，仍不可用则中止发布，
+# 绝不允许无静态检查的产物进入 dist 分支
+if ! command -v shellcheck >/dev/null 2>&1; then
+    echo "shellcheck 未安装，尝试自动安装……"
+    if command -v apt-get >/dev/null 2>&1; then
+        apt-get update -qq >/dev/null 2>&1 || true
+        apt-get install -y -qq shellcheck >/dev/null 2>&1 || true
+    elif command -v apk >/dev/null 2>&1; then
+        apk add --no-cache shellcheck >/dev/null 2>&1 || true
     fi
-    find lib src/modules -name '*.sh' -print0 | xargs -0 shellcheck --severity=error -f gcc
-    shellcheck -f gcc dist/PVE-Tools.sh > /tmp/shellcheck_dist.out || true
-    cat /tmp/shellcheck_dist.out || true
-    if grep -q "error\|warning" /tmp/shellcheck_dist.out; then
-        echo "shellcheck 在构建产物发现 error/warning"
-        exit 1
-    fi
-else
-    echo "shellcheck 不可用，已跳过静态检查。"
+fi
+if ! command -v shellcheck >/dev/null 2>&1; then
+    echo "shellcheck 不可用且自动安装失败：发布门禁无法满足，拒绝发布"
+    exit 1
+fi
+shellcheck -f gcc PVE-Tools.sh > /tmp/shellcheck_entry.out || true
+cat /tmp/shellcheck_entry.out || true
+if grep -q "error\|warning" /tmp/shellcheck_entry.out; then
+    echo "shellcheck 在入口脚本发现 error/warning"
+    exit 1
+fi
+find lib src/modules -name '*.sh' -print0 | xargs -0 shellcheck --severity=error -f gcc
+shellcheck -f gcc dist/PVE-Tools.sh > /tmp/shellcheck_dist.out || true
+cat /tmp/shellcheck_dist.out || true
+if grep -q "error\|warning" /tmp/shellcheck_dist.out; then
+    echo "shellcheck 在构建产物发现 error/warning"
+    exit 1
 fi
 
 # ---------------------------------------------------------------------------
@@ -102,8 +116,11 @@ GIT_INDEX_FILE="$PUBLISH_INDEX" git update-index --add \
     --cacheinfo "100644,${DIST_BLOB_SUMS},SHA256SUMS.txt"
 DIST_TREE="$(GIT_INDEX_FILE="$PUBLISH_INDEX" git write-tree)"
 rm -f "$PUBLISH_INDEX"
-# dist 分支上一版存在时挂为父提交（历史连续），不存在则为孤儿首提交
-DIST_PARENT="$(git rev-parse -q --verify refs/remotes/origin/dist 2>/dev/null || true)"
+# dist 分支远端当前值：显式 fetch 一次（浅克隆可能没有 remote-tracking ref），
+# 同时用作发布提交的父提交与 force-with-lease 的期望值
+git fetch -q origin dist 2>/dev/null || true
+DIST_PARENT="$(git rev-parse -q --verify refs/remotes/origin/dist 2>/dev/null \
+    || git rev-parse -q --verify FETCH_HEAD 2>/dev/null || true)"
 if [[ -n "$DIST_PARENT" ]]; then
     DIST_COMMIT="$(git commit-tree "$DIST_TREE" -p "$DIST_PARENT" \
         -m "publish: PVE-Tools dist v${VERSION_FILE_VERSION}")"
@@ -111,6 +128,12 @@ else
     DIST_COMMIT="$(git commit-tree "$DIST_TREE" \
         -m "publish: PVE-Tools dist v${VERSION_FILE_VERSION}")"
 fi
-git push -f origin "${DIST_COMMIT}:refs/heads/dist"
+# force-with-lease 防止并发/陈旧流水线覆盖更新的产物：远端 dist 当前值与预期
+# 不符（已被别处更新）时推送失败；空期望值要求远端尚无 dist 分支
+if [[ -n "$DIST_PARENT" ]]; then
+    git push --force-with-lease="refs/heads/dist:${DIST_PARENT}" origin "${DIST_COMMIT}:refs/heads/dist"
+else
+    git push --force-with-lease="refs/heads/dist:" origin "${DIST_COMMIT}:refs/heads/dist"
+fi
 
 echo "dist v${VERSION_FILE_VERSION} 发布完成。"
