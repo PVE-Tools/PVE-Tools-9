@@ -15,7 +15,8 @@
 bash dev.sh                                          # run from source
 bash build.sh                                        # build dist/PVE-Tools.sh
 bash -n PVE-Tools.sh && bash -n dist/PVE-Tools.sh    # syntax check
-shellcheck -f gcc PVE-Tools.sh dist/PVE-Tools.sh     # strict lint (entry + artifact)
+shellcheck -f gcc PVE-Tools.sh                        # strict lint (entry, error+warning)
+shellcheck --severity=error -f gcc dist/PVE-Tools.sh  # artifact lint (error level; warning 档在拼接物上有跨函数误报与源码风格遗留继承，见 ci/cnb-publish.sh 注释)
 find lib src/modules -name '*.sh' -print0 | xargs -0 shellcheck --severity=error -f gcc
 ```
 

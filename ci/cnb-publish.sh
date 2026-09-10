@@ -3,7 +3,7 @@
 # Copyright (C) 2026 Ciriu Networks
 
 # CNB 发布流水线脚本：构建 dist 单文件 → 复刻 PR 门禁 → 发布到 dist 分支。
-# 仅在 VERSION 文件发生变更的提交上发布，普通提交直接跳过（避免重复发布）。
+# 触发条件：VERSION 变更，或 dist 分支产物版本落后/缺失（自愈补发）。
 # 发布语义为覆盖式 latest：dist 分支始终只有最新产物两个文件：
 #   PVE-Tools.sh / SHA256SUMS.txt
 # 用户侧固定下载地址：https://cnb.cool/PVE-Tools/PVE-Tools-Pro/-/git/raw/dist/PVE-Tools.sh
@@ -13,11 +13,52 @@ set -e
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# 复用仓库既有语义化版本比较 pve_tools_version_gt（strip pre-release + sort -V，
+# 空值 fail-closed）。ci 脚本不进 dist，直接 source 共享实现避免逻辑漂移
+# shellcheck source=lib/core.sh
+source lib/core.sh
+
 # ---------------------------------------------------------------------------
-# 发布触发判断：仅 VERSION 变更的提交才发布
+# 发布触发判断：VERSION 变更，或 dist 产物版本落后/缺失时自愈补发。
+# 仅看 VERSION diff 会让 CI 失败恢复、审查修复等“内容已变但版本号未动”的
+# 提交永远无法补发 dist，导致线上产物静默落后于源码。
 # ---------------------------------------------------------------------------
-if git rev-parse HEAD~1 >/dev/null 2>&1 && git diff --quiet HEAD~1 HEAD -- VERSION; then
-    echo "VERSION 未变更，跳过 dist 发布。"
+VERSION_FILE_VERSION=$(cat VERSION)
+if [ -z "$VERSION_FILE_VERSION" ]; then
+    echo "VERSION 文件为空，无法判定发布条件，跳过发布（fail-closed）。"
+    exit 0
+fi
+NEED_PUBLISH=false
+if ! git rev-parse HEAD~1 >/dev/null 2>&1; then
+    echo "单提交（无 HEAD~1），无法比对 VERSION diff，保守起见执行发布。"
+    NEED_PUBLISH=true
+elif ! git diff --quiet HEAD~1 HEAD -- VERSION; then
+    NEED_PUBLISH=true
+else
+    # 自愈检查：仅当 dist 分支缺失，或本地版本严格更新于 dist 产物时补发；
+    # 版本相同或远端更新则跳过，防止覆盖（如 hotfix 直推的更新产物）
+    git fetch -q origin dist 2>/dev/null || true
+    if git rev-parse -q --verify FETCH_HEAD >/dev/null 2>&1; then
+        DIST_ONLINE_VERSION="$(git show FETCH_HEAD:PVE-Tools.sh 2>/dev/null \
+            | grep -m1 '^CURRENT_VERSION=' | sed 's/^CURRENT_VERSION=//' | tr -d '"')"
+        if [ -z "$DIST_ONLINE_VERSION" ]; then
+            echo "dist 产物存在但版本无法解析，新旧关系未知，跳过发布（fail-closed）。"
+            exit 0
+        fi
+        if pve_tools_version_gt "$VERSION_FILE_VERSION" "$DIST_ONLINE_VERSION"; then
+            echo "dist 产物版本($DIST_ONLINE_VERSION)落后于源码版本($VERSION_FILE_VERSION)，自愈补发。"
+            NEED_PUBLISH=true
+        else
+            echo "dist 产物版本($DIST_ONLINE_VERSION)不落后于源码版本($VERSION_FILE_VERSION)，跳过发布。"
+            exit 0
+        fi
+    else
+        echo "dist 分支不存在，执行首次发布。"
+        NEED_PUBLISH=true
+    fi
+fi
+if [ "$NEED_PUBLISH" != true ]; then
+    echo "VERSION 未变更且 dist 产物已是最新，跳过 dist 发布。"
     exit 0
 fi
 
@@ -35,7 +76,7 @@ bash -n dist/PVE-Tools.sh
 
 echo "== 版本一致性 =="
 SCRIPT_VERSION=$(grep "CURRENT_VERSION=" lib/config.sh | cut -d'"' -f2)
-VERSION_FILE_VERSION=$(cat VERSION)
+# VERSION_FILE_VERSION 已在触发判断段读取
 if [ "$SCRIPT_VERSION" != "$VERSION_FILE_VERSION" ]; then
     echo "版本不一致: lib/config.sh($SCRIPT_VERSION) != VERSION($VERSION_FILE_VERSION)"
     exit 1
@@ -82,17 +123,19 @@ if ! command -v shellcheck >/dev/null 2>&1; then
     echo "shellcheck 不可用且自动安装失败：发布门禁无法满足，拒绝发布"
     exit 1
 fi
-shellcheck -f gcc PVE-Tools.sh > /tmp/shellcheck_entry.out || true
-cat /tmp/shellcheck_entry.out || true
-if grep -q "error\|warning" /tmp/shellcheck_entry.out; then
-    echo "shellcheck 在入口脚本发现 error/warning"
+if ! shellcheck -f gcc PVE-Tools.sh > /tmp/shellcheck_entry.out; then
+    cat /tmp/shellcheck_entry.out || true
+    echo "shellcheck 在入口脚本发现问题（error+warning 严格档）"
     exit 1
 fi
 find lib src/modules -name '*.sh' -print0 | xargs -0 shellcheck --severity=error -f gcc
-shellcheck -f gcc dist/PVE-Tools.sh > /tmp/shellcheck_dist.out || true
-cat /tmp/shellcheck_dist.out || true
-if grep -q "error\|warning" /tmp/shellcheck_dist.out; then
-    echo "shellcheck 在构建产物发现 error/warning"
+# 产物为全库拼接单文件：error+warning 档不可用——拼接物存在跨函数同名变量误报
+# （SC2178/SC2128 仅 dist 报、源码不报），且源码大量 warning 级遗留（SC2155 风格、
+# SC1111 中文文案 unicode 引号、SC2034 跨文件引用误报）会继承进产物。
+# 因此产物与源码 lib/modules 同用 error 档拦真实危险；入口单文件维持严格档。
+if ! shellcheck --severity=error -f gcc dist/PVE-Tools.sh > /tmp/shellcheck_dist.out; then
+    cat /tmp/shellcheck_dist.out || true
+    echo "shellcheck 在构建产物发现 error"
     exit 1
 fi
 
