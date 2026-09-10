@@ -1,0 +1,13 @@
+# CNB 云原生构建流水线：main 分支收到 push 时执行发布脚本。
+# 是否真正发布由 ci/cnb-publish.sh 内部判断（仅 VERSION 文件变更的提交才发布），
+# 构建与门禁逻辑同样收敛在脚本内（script instead yml，便于本地直接验证）。
+# lock + cancel-in-progress：同一锁位的流水线互斥，后到者取消先到者，
+# 防止并发/陈旧流水线交错发布覆盖更新的 dist 产物
+main:
+  push:
+    - lock:
+        key: publish-dist
+        cancel-in-progress: true
+      stages:
+        - name: publish-dist
+          script: bash ci/cnb-publish.sh

@@ -3,7 +3,7 @@
 # Copyright (C) 2026 Ciriu Networks
 
 menu_tools_about() {
-    run_menu "工具与关于" menu_tools_about_render menu_tools_about_dispatch "0-5"
+    run_menu "工具与关于" menu_tools_about_render menu_tools_about_dispatch "0-6"
 }
 
 menu_tools_about_render() {
@@ -11,7 +11,8 @@ menu_tools_about_render() {
     show_menu_option "2" "应急救砖工具箱"
     show_menu_option "3" "本地脚本快捷更新"
     show_menu_option "4" "${RED}本地脚本快捷卸载${NC}"
-    show_menu_option "5" "给作者点个 Star 吧"
+    show_menu_option "5" "安装环境诊断 (doctor)"
+    show_menu_option "6" "给作者点个 Star 吧"
 }
 
 menu_tools_about_dispatch() {
@@ -20,7 +21,8 @@ menu_tools_about_dispatch() {
         2) show_menu_rescue ;;
         3) pve_tools_local_update ;;
         4) pve_tools_local_uninstall ;;
-        5)
+        5) pve_tools_doctor_run ;;
+        6)
             echo -e "${YELLOW}项目地址：https://github.com/PVE-Tools/PVE-Tools-9${NC}"
             echo -e "${GREEN}您的支持是我更新的最大动力，谢谢喵~${NC}"
             ;;

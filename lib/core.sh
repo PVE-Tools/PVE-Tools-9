@@ -250,24 +250,26 @@ pve_tools_download_file() {
     fi
 }
 pve_tools_choose_update_urls() {
-    local prefer_mirror=0
-    local version_url="$VERSION_FILE_URL"
-    local update_url="$UPDATE_FILE_URL"
-    local script_url="$PVE_TOOLS_SCRIPT_URL"
+    # 输出 7 段：首选组标志|首选 VERSION|首选 UPDATE|首选脚本|备用 VERSION|备用 UPDATE|备用脚本
+    # 首选组按地区决定：国内（USE_MIRROR_FOR_UPDATE=1，由 detect_network_region 探测
+    # 或用户设置）走 CNB（腾讯 CDN），否则走 GitHub；两组互为下载失败回退。
+    local prefer_cnb=0
 
     if [[ -n "$USER_COUNTRY_CODE" ]]; then
-        prefer_mirror=$USE_MIRROR_FOR_UPDATE
+        prefer_cnb=$USE_MIRROR_FOR_UPDATE
     elif detect_network_region >/dev/null 2>&1; then
-        prefer_mirror=$USE_MIRROR_FOR_UPDATE
+        prefer_cnb=$USE_MIRROR_FOR_UPDATE
     fi
 
-    if [[ "$prefer_mirror" -eq 1 ]]; then
-        version_url="${GITHUB_MIRROR_PREFIX}${VERSION_FILE_URL}"
-        update_url="${GITHUB_MIRROR_PREFIX}${UPDATE_FILE_URL}"
-        script_url="${GITHUB_MIRROR_PREFIX}${PVE_TOOLS_SCRIPT_URL}"
+    if [[ "$prefer_cnb" -eq 1 ]]; then
+        printf '%s|%s|%s|%s|%s|%s|%s\n' "$prefer_cnb" \
+            "$VERSION_FILE_URL_CNB" "$UPDATE_FILE_URL_CNB" "$PVE_TOOLS_SCRIPT_URL_CNB" \
+            "$VERSION_FILE_URL" "$UPDATE_FILE_URL" "$PVE_TOOLS_SCRIPT_URL"
+    else
+        printf '%s|%s|%s|%s|%s|%s|%s\n' "$prefer_cnb" \
+            "$VERSION_FILE_URL" "$UPDATE_FILE_URL" "$PVE_TOOLS_SCRIPT_URL" \
+            "$VERSION_FILE_URL_CNB" "$UPDATE_FILE_URL_CNB" "$PVE_TOOLS_SCRIPT_URL_CNB"
     fi
-
-    printf '%s|%s|%s|%s\n' "$prefer_mirror" "$version_url" "$update_url" "$script_url"
 }
 pve_tools_version_gt() {
     local newer="$1"

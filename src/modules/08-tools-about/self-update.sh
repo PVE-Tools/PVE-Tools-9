@@ -8,28 +8,21 @@ check_update() {
     # 显示进度提示
     echo -ne "[....] 正在检查更新...\033[0K\r"
 
-    local update_urls prefer_mirror preferred_version_url preferred_update_url preferred_script_url
-    local mirror_version_url="${GITHUB_MIRROR_PREFIX}${VERSION_FILE_URL}"
-    local mirror_update_url="${GITHUB_MIRROR_PREFIX}${UPDATE_FILE_URL}"
+    local update_urls prefer_cnb version_url update_url script_url version_fb_url update_fb_url
 
     update_urls="$(pve_tools_choose_update_urls)"
-    IFS='|' read -r prefer_mirror preferred_version_url preferred_update_url preferred_script_url <<< "$update_urls"
-    if [[ "$prefer_mirror" -eq 1 ]]; then
-        log_info "当前地区为： ${USER_COUNTRY_CODE:-unknown}，使用镜像源检查更新..."
+    IFS='|' read -r prefer_cnb version_url update_url script_url version_fb_url update_fb_url _ <<< "$update_urls"
+    if [[ "$prefer_cnb" -eq 1 ]]; then
+        log_info "当前地区为： ${USER_COUNTRY_CODE:-unknown}，使用 CNB 国内源检查更新..."
     else
         log_info "使用 GitHub 源检查更新"
     fi
 
-    remote_content=$(pve_tools_download_url "$preferred_version_url" 10)
+    remote_content=$(pve_tools_download_url "$version_url" 10)
 
     if [ -z "$remote_content" ]; then
-        if [[ $prefer_mirror -eq 1 ]]; then
-            log_warn "镜像源连接失败，尝试使用 GitHub 源..."
-            remote_content=$(pve_tools_download_url "$VERSION_FILE_URL" 10)
-        else
-            log_warn "GitHub 连接失败，尝试使用镜像源..."
-            remote_content=$(pve_tools_download_url "$mirror_version_url" 10)
-        fi
+        log_warn "首选源连接失败，尝试备用源..."
+        remote_content=$(pve_tools_download_url "$version_fb_url" 10)
     fi
     
     # 清除进度显示
@@ -54,16 +47,11 @@ check_update() {
         return
     fi
 
-    detailed_changelog=$(pve_tools_download_url "$preferred_update_url" 10)
+    detailed_changelog=$(pve_tools_download_url "$update_url" 10)
 
     if [ -z "$detailed_changelog" ]; then
-        if [[ $prefer_mirror -eq 1 ]]; then
-            log_warn "镜像源更新日志获取失败，尝试使用 GitHub 源..."
-            detailed_changelog=$(pve_tools_download_url "$UPDATE_FILE_URL" 10)
-        else
-            log_warn "GitHub 更新日志获取失败，尝试使用镜像源..."
-            detailed_changelog=$(pve_tools_download_url "$mirror_update_url" 10)
-        fi
+        log_warn "首选源更新日志获取失败，尝试备用源..."
+        detailed_changelog=$(pve_tools_download_url "$update_fb_url" 10)
     fi
     
     # 比较版本
@@ -108,8 +96,8 @@ check_update() {
 pve_tools_local_update() {
     # 用 $0 定位实际入口脚本（dist 单文件 / launcher），而非被 source 的模块文件
     local current_script="$0"
-    local resolved_script backup_dir backup_path tmp_script update_urls prefer_mirror version_url update_url script_url
-    local remote_content remote_version detailed_changelog fallback_script_url downloaded_version
+    local resolved_script backup_dir backup_path tmp_script update_urls prefer_cnb version_url update_url script_url version_fb_url update_fb_url script_fb_url version_source_url tmp_swap
+    local remote_content remote_version detailed_changelog downloaded_version
 
     if [[ -z "$current_script" || ! -f "$current_script" ]]; then
         display_error "无法定位当前脚本文件" "请使用本地文件方式运行脚本后再执行更新。"
@@ -123,16 +111,15 @@ pve_tools_local_update() {
     fi
 
     update_urls="$(pve_tools_choose_update_urls)"
-    IFS='|' read -r prefer_mirror version_url update_url script_url <<< "$update_urls"
+    IFS='|' read -r prefer_cnb version_url update_url script_url version_fb_url update_fb_url script_fb_url <<< "$update_urls"
+    # 记录 remote_version 的实际来源：版本文件与脚本必须来自同一源组，
+    # 避免两源发版节奏不同步时跨源混搭出不一致的版本/脚本组合
+    version_source_url="$version_url"
     remote_content="$(pve_tools_download_url "$version_url" 15)"
     if [[ -z "$remote_content" ]]; then
-        if [[ "$prefer_mirror" -eq 1 ]]; then
-            log_warn "镜像源版本文件获取失败，尝试 GitHub 源。"
-            remote_content="$(pve_tools_download_url "$VERSION_FILE_URL" 15)"
-        else
-            log_warn "GitHub 版本文件获取失败，尝试镜像源。"
-            remote_content="$(pve_tools_download_url "${GITHUB_MIRROR_PREFIX}${VERSION_FILE_URL}" 15)"
-        fi
+        log_warn "首选源版本文件获取失败，尝试备用源。"
+        version_source_url="$version_fb_url"
+        remote_content="$(pve_tools_download_url "$version_fb_url" 15)"
     fi
 
     if [[ -z "$remote_content" ]]; then
@@ -148,11 +135,8 @@ pve_tools_local_update() {
 
     detailed_changelog="$(pve_tools_download_url "$update_url" 15)"
     if [[ -z "$detailed_changelog" ]]; then
-        if [[ "$prefer_mirror" -eq 1 ]]; then
-            detailed_changelog="$(pve_tools_download_url "$UPDATE_FILE_URL" 15)"
-        else
-            detailed_changelog="$(pve_tools_download_url "${GITHUB_MIRROR_PREFIX}${UPDATE_FILE_URL}" 15)"
-        fi
+        log_warn "首选源更新日志获取失败，尝试备用源。"
+        detailed_changelog="$(pve_tools_download_url "$update_fb_url" 15)"
     fi
 
     clear
@@ -183,6 +167,14 @@ pve_tools_local_update() {
         return 0
     fi
 
+    # 版本来自备用源组时，交换首选/备用脚本地址，让同源脚本地址先试
+    # （下方下载逻辑保持不变，始终先试 script_url 后试 script_fb_url）
+    if [[ "$version_source_url" == "$version_fb_url" ]]; then
+        tmp_swap="$script_url"
+        script_url="$script_fb_url"
+        script_fb_url="$tmp_swap"
+    fi
+
     backup_dir="/var/backups/pve-tools"
     mkdir -p "$backup_dir" || {
         display_error "无法创建备份目录: $backup_dir" "已保持本地脚本不变。"
@@ -202,10 +194,8 @@ pve_tools_local_update() {
     log_success "当前脚本已备份: $backup_path"
 
     if ! pve_tools_download_url "$script_url" 30 > "$tmp_script"; then
-        fallback_script_url="$PVE_TOOLS_SCRIPT_URL"
-        [[ "$script_url" == "$PVE_TOOLS_SCRIPT_URL" ]] && fallback_script_url="${GITHUB_MIRROR_PREFIX}${PVE_TOOLS_SCRIPT_URL}"
-        log_warn "首选脚本下载失败，尝试备用源: $fallback_script_url"
-        if ! pve_tools_download_url "$fallback_script_url" 30 > "$tmp_script"; then
+        log_warn "首选脚本下载失败，尝试备用源: $script_fb_url"
+        if ! pve_tools_download_url "$script_fb_url" 30 > "$tmp_script"; then
             rm -f "$tmp_script"
             display_error "下载新脚本失败" "已保留原脚本，备份位于 $backup_path。"
             return 1
@@ -236,7 +226,7 @@ pve_tools_local_update() {
 
     display_success "本地脚本更新完成" "备份文件: $backup_path；请重新运行脚本以加载新版本。"
 }
-# 读取安装器元数据（实际安装路径）。逐行白名单解析，不使用 source/eval（dist 安全扫描约束）。
+# 读取安装器元数据（实际安装路径）。逐行白名单解析，不使用动态求值与 source 加载（dist 安全扫描约束）。
 pve_tools_load_installer_meta() {
     local key="" value=""
 

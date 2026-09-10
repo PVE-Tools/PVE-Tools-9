@@ -1,0 +1,46 @@
+# GitHub main → CNB 镜像仓自动同步：合并到 main 后自动把代码推到
+# cnb.cool/PVE-Tools/PVE-Tools-Pro，触发其 .cnb.yml 流水线构建并发布 dist。
+# 使用 CNB 官方 git-sync 插件（https://cnb.cool/cnb/plugins/tencentcom/git-sync），
+# 镜像以固定 digest 引用（当前 latest 的多架构 index digest，经 Docker Registry
+# API 核实）；升级插件需显式更换 digest 并过 PR 审查，杜绝标签漂移供应链风险。
+# 前置配置：upstream 仓库 Settings → Secrets and variables → Actions
+#   新增 secret CNB_SYNC_TOKEN，值为 CNB 访问令牌（需 repo-code 写权限）。
+name: Sync to CNB
+
+on:
+  push:
+    branches: [main]
+
+# GitHub Actions 最小权限：本 workflow 对 GitHub 只读（拉取完整历史），
+# 推送目标在 CNB 侧，凭据走 CNB_SYNC_TOKEN 环境变量
+permissions:
+  contents: read
+
+# 分支级串行 + 取消进行中的旧运行：防止陈旧同步覆盖较新的 CNB 状态
+concurrency:
+  group: sync-cnb-main
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      # 固定到 v4 标签当前指向的 commit SHA，杜绝 tag 漂移供应链风险
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          # 同步只需读取仓库，无需在 runner 上持久化 GitHub 凭据
+          persist-credentials: false
+
+      - name: Sync to CNB Repository
+        uses: docker://tencentcom/git-sync@sha256:b7c4672616ddea5b89948dcd034610b29d37d8430e74b4bc83b421c963c25f77
+        env:
+          PLUGIN_TARGET_URL: "https://cnb.cool/PVE-Tools/PVE-Tools-Pro.git"
+          PLUGIN_AUTH_TYPE: "https"
+          PLUGIN_USERNAME: "cnb"
+          PLUGIN_PASSWORD: ${{ secrets.CNB_SYNC_TOKEN }}
+          PLUGIN_BRANCH: "main"
+          # FORCE 保留：CNB main 是纯镜像分支，仅由本 workflow 写入；squash 合并
+          # 或历史改写会产生非 FF 提交，force 让镜像自愈对齐 GitHub main。
+          # 陈旧运行覆盖新状态的风险已由上方 concurrency 取消机制规避
+          PLUGIN_FORCE: "true"

@@ -13,10 +13,14 @@
 # 同时承担可选安装器职责：--install 将完整版安装为系统命令 pvetools，--uninstall 卸载；
 # 不带参数运行保持原有行为（远程模式下载完成后会交互询问是否顺便安装）。
 
-# 远程模式从 GitHub Release 资产下载构建产物（单文件完整版）。
-# 仓库 main 分支不跟踪 dist/，raw.githubusercontent.com 上没有 dist/PVE-Tools.sh，不要改回 raw 路径。
+# 远程模式从两个发布源下载构建产物（单文件完整版），顺序即优先级：
+# 1. CNB 镜像发布仓（腾讯云 CDN，国内直连快、自家可信）：main 分支同步自 GitHub，
+#    dist 分支由 CI 构建并发布单文件；
+# 2. GitHub Release 资产（海外/兜底）。
+# 仓库 main 分支不跟踪 dist/，raw 地址上没有 dist/PVE-Tools.sh，不要改回 raw 路径。
 PVE_TOOLS_RELEASE_BASE_URL="${PVE_TOOLS_RELEASE_BASE_URL:-https://github.com/PVE-Tools/PVE-Tools-9/releases}"
-PVE_TOOLS_REMOTE_MIRROR_PREFIX="${PVE_TOOLS_REMOTE_MIRROR_PREFIX:-https://ghfast.top/}"
+PVE_TOOLS_CNB_RAW_BASE="${PVE_TOOLS_CNB_RAW_BASE:-https://cnb.cool/PVE-Tools/PVE-Tools-Pro/-/git/raw}"
+PVE_TOOLS_CNB_DIST_URL="${PVE_TOOLS_CNB_DIST_URL:-$PVE_TOOLS_CNB_RAW_BASE/dist/PVE-Tools.sh}"
 PVE_TOOLS_REMOTE_DIST_URL="${PVE_TOOLS_REMOTE_DIST_URL:-$PVE_TOOLS_RELEASE_BASE_URL/latest/download/PVE-Tools.sh}"
 PVE_TOOLS_CONNECT_TIMEOUT="${PVE_TOOLS_CONNECT_TIMEOUT:-10}"
 PVE_TOOLS_DOWNLOAD_TIMEOUT="${PVE_TOOLS_DOWNLOAD_TIMEOUT:-120}"
@@ -205,27 +209,21 @@ pve_tools_entry_download_file() {
     local output="$2"
     local output_dir=""
     local part_file="${output}.part"
-    local mirror_url=""
     local downloaded_bytes=""
     local download_status=0
     local index=0
     local source_count=0
     local source_name=""
     local source_url=""
-    local -a source_names=("GitHub 原始源")
-    local -a source_urls=("$url")
+    # 顺序即优先级：CNB（腾讯 CDN）国内快且自家可信，GitHub Releases 海外/兜底
+    local -a source_names=("CNB 国内源" "GitHub Releases")
+    local -a source_urls=("$PVE_TOOLS_CNB_DIST_URL" "$url")
 
     output_dir="$(dirname "$output")"
     if ! mkdir -p "$output_dir"; then
         PVE_TOOLS_ENTRY_LAST_ERROR="无法创建临时下载目录：$output_dir"
         echo "错误：$PVE_TOOLS_ENTRY_LAST_ERROR" >&2
         return 1
-    fi
-
-    if [[ -n "$PVE_TOOLS_REMOTE_MIRROR_PREFIX" && "$url" != "${PVE_TOOLS_REMOTE_MIRROR_PREFIX}"* ]]; then
-        mirror_url="${PVE_TOOLS_REMOTE_MIRROR_PREFIX}${url}"
-        source_names+=("GitHub 加速源")
-        source_urls+=("$mirror_url")
     fi
 
     if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
@@ -284,13 +282,13 @@ pve_tools_entry_print_release_help() {
     cat >&2 <<EOF
 
 错误：PVE-Tools 主程序单文件完整版下载失败，程序尚未启动。
-以上 GitHub 原始源和加速源均未能完成下载。
+以上 CNB 国内源和 GitHub Release 源均未能完成下载。
 
-请在另一台能够访问 GitHub 的设备或网络中打开：
+请先检查主机网络，然后任选以下地址手动下载（请勿下载 Source code 的 zip 或 tar.gz 压缩包）：
+CNB 国内源：
+$PVE_TOOLS_CNB_DIST_URL
+GitHub Releases（展开 Assets，下载 PVE-Tools.sh）：
 $PVE_TOOLS_RELEASE_PAGE_URL
-
-展开 Assets，下载 PVE-Tools.sh（请勿下载 Source code 的 zip 或 tar.gz 压缩包）。
-直接下载地址：$PVE_TOOLS_RELEASE_ASSET_URL
 
 下载后可通过 SCP、WinSCP 或 U 盘传到 PVE 主机，然后执行：
   chmod +x PVE-Tools.sh
@@ -575,6 +573,73 @@ pve_tools_entry_place_file() {
     fi
 }
 
+# bin 模式安装完成后的遮蔽检测：交互终端中别名/函数优先于 PATH 命令解析，
+# v10 时代遗留的无标记 pvetools 别名或旧引导副本会让用户继续运行失效脚本
+# （raw main 的 dist 路径自 v10.2.1 起不存在，必 404）。入口端只警告不改动，
+# 确认后的自动清理见主程序菜单 8 的「安装环境诊断」。
+# 校验 rc 文件中安装器标记块配对与顺序（与 doctor 的
+# pve_tools_doctor_rc_block_complete 同语义）：数量相等、首个标记为 BEGIN、
+# 末个标记为 END 才算完整。仅比较标记存在性会漏判乱序形态（END 在前、
+# BEGIN 多于 END），此时 sed 范围会从 BEGIN 一路删到文件尾，把块后的
+# 无标记别名一并滤掉导致漏报
+pve_tools_entry_rc_block_complete() {
+    local rc_file="$1"
+
+    awk -v marker="$PVE_TOOLS_ALIAS_MARKER" '
+        $0 == ("# PVE-TOOLS BEGIN " marker) { begin++; if (first == "") first = "B"; last = "B"; next }
+        $0 == ("# PVE-TOOLS END " marker)   { end++;   if (first == "") first = "E"; last = "E" }
+        END {
+            if (begin == 0 && end == 0) { exit 0 }
+            exit (begin == end && first == "B" && last == "E") ? 0 : 1
+        }
+    ' "$rc_file" 2>/dev/null
+}
+
+pve_tools_entry_check_legacy_shadow() {
+    local rc_file="$PVE_TOOLS_INSTALL_RC_FILE"
+    local candidate="" shadow_found=0
+    local -a candidate_paths=(
+        "/usr/bin/pvetools"
+        "/bin/pvetools"
+        "/root/PVE-Tools.sh"
+        "/root/bin/pvetools"
+        "${PVE_TOOLS_INSTALL_OPT_DIR}/PVE-Tools.sh"
+    )
+
+    # 安装器标记块之外的 pvetools 别名（标记块内的由安装器自身管理，不在此列）。
+    # 先校验标记块配对与顺序：乱序/缺标记时 sed 范围可能从 BEGIN 删到文件尾，
+    # 把块后的无标记别名一并滤掉导致漏报；此时改用未过滤的 rc 原文检测并单独提示。
+    if [[ -f "$rc_file" ]]; then
+        if ! pve_tools_entry_rc_block_complete "$rc_file"; then
+            shadow_found=1
+            echo "警告：$rc_file 中别名标记块不完整（标记缺失或顺序错乱），请运行主程序菜单 8 的「安装环境诊断」检查。" >&2
+            if grep -q "^[[:space:]]*alias[[:space:]]\+pvetools=" "$rc_file" 2>/dev/null; then
+                echo "警告：$rc_file 中存在 pvetools 别名（标记块不完整，未过滤），交互终端中别名优先于新装的命令生效。" >&2
+            fi
+        elif sed "/^# PVE-TOOLS BEGIN $PVE_TOOLS_ALIAS_MARKER\$/,/^# PVE-TOOLS END $PVE_TOOLS_ALIAS_MARKER\$/d" "$rc_file" 2>/dev/null | grep -q "^[[:space:]]*alias[[:space:]]\+pvetools="; then
+            shadow_found=1
+            echo "警告：$rc_file 中存在标记块之外的 pvetools 别名，交互终端中别名优先于新装的命令生效。" >&2
+        fi
+    fi
+
+    for candidate in "${candidate_paths[@]}"; do
+        [[ -f "$candidate" ]] || continue
+        # 完整版副本（含 CURRENT_VERSION）是新版安装/托管的合法产物，不是旧引导残留
+        if pve_tools_entry_is_full_script "$candidate"; then
+            continue
+        fi
+        # 仅匹配 v10 引导专用的变量定义行，避免命中注释等无关出现位置
+        if grep -q "^[[:space:]]*PVE_TOOLS_REMOTE_BASE=" "$candidate" 2>/dev/null; then
+            shadow_found=1
+            echo "警告：发现 v10 旧引导脚本副本 $candidate（内置下载地址已失效），建议删除。" >&2
+        fi
+    done
+
+    if [[ "$shadow_found" -eq 1 ]]; then
+        echo "提示：可运行 pvetools 后进入菜单 8 选择「安装环境诊断」自动清理残留。" >&2
+    fi
+}
+
 pve_tools_entry_install_from() {
     local source_file="$1"
     local mode="$2"
@@ -682,6 +747,9 @@ pve_tools_entry_install_from() {
         echo "命令路径：$target"
     fi
     echo "卸载方式：运行 pvetools --uninstall，或在主程序菜单 8 中选择本地脚本快捷卸载。"
+    if [[ "$mode" == "bin" ]]; then
+        pve_tools_entry_check_legacy_shadow
+    fi
     return 0
 }
 
@@ -710,7 +778,10 @@ pve_tools_entry_uninstall_system() {
     if [[ -d "$opt_dir" ]] && pve_tools_entry_is_full_script "$opt_dir/PVE-Tools.sh"; then
         has_opt=1; found=1
     fi
-    if grep -q "^# PVE-TOOLS BEGIN $PVE_TOOLS_ALIAS_MARKER\$" "$rc_file" 2>/dev/null; then
+    # 残留的单边标记（仅 BEGIN 或仅 END）同样视为存在别名块：
+    # remove_alias_block 会拒绝不完整块的自动清理并保留恢复信息
+    if grep -q "^# PVE-TOOLS BEGIN $PVE_TOOLS_ALIAS_MARKER\$" "$rc_file" 2>/dev/null \
+        || grep -q "^# PVE-TOOLS END $PVE_TOOLS_ALIAS_MARKER\$" "$rc_file" 2>/dev/null; then
         has_alias=1; found=1
     fi
     # 首次写入别名块前的配置备份（write_alias_block 创建）属于安装器产物，卸载时一并清理
