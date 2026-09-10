@@ -13,12 +13,21 @@ set -e
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# 复用仓库既有语义化版本比较 pve_tools_version_gt（strip pre-release + sort -V，
+# 空值 fail-closed）。ci 脚本不进 dist，直接 source 共享实现避免逻辑漂移
+# shellcheck source=lib/core.sh
+source lib/core.sh
+
 # ---------------------------------------------------------------------------
 # 发布触发判断：VERSION 变更，或 dist 产物版本落后/缺失时自愈补发。
 # 仅看 VERSION diff 会让 CI 失败恢复、审查修复等“内容已变但版本号未动”的
 # 提交永远无法补发 dist，导致线上产物静默落后于源码。
 # ---------------------------------------------------------------------------
 VERSION_FILE_VERSION=$(cat VERSION)
+if [ -z "$VERSION_FILE_VERSION" ]; then
+    echo "VERSION 文件为空，无法判定发布条件，跳过发布（fail-closed）。"
+    exit 0
+fi
 NEED_PUBLISH=false
 if ! git rev-parse HEAD~1 >/dev/null 2>&1; then
     echo "单提交（无 HEAD~1），无法比对 VERSION diff，保守起见执行发布。"
@@ -26,15 +35,25 @@ if ! git rev-parse HEAD~1 >/dev/null 2>&1; then
 elif ! git diff --quiet HEAD~1 HEAD -- VERSION; then
     NEED_PUBLISH=true
 else
-    # 自愈检查：远端 dist 产物版本与当前版本不一致（落后或缺失）即补发
+    # 自愈检查：仅当 dist 分支缺失，或本地版本严格更新于 dist 产物时补发；
+    # 版本相同或远端更新则跳过，防止覆盖（如 hotfix 直推的更新产物）
     git fetch -q origin dist 2>/dev/null || true
-    DIST_ONLINE_VERSION=""
     if git rev-parse -q --verify FETCH_HEAD >/dev/null 2>&1; then
         DIST_ONLINE_VERSION="$(git show FETCH_HEAD:PVE-Tools.sh 2>/dev/null \
             | grep -m1 '^CURRENT_VERSION=' | sed 's/^CURRENT_VERSION=//' | tr -d '"')"
-    fi
-    if [ "$DIST_ONLINE_VERSION" != "$VERSION_FILE_VERSION" ]; then
-        echo "dist 产物版本(${DIST_ONLINE_VERSION:-缺失})落后于源码版本($VERSION_FILE_VERSION)，自愈补发。"
+        if [ -z "$DIST_ONLINE_VERSION" ]; then
+            echo "dist 产物存在但版本无法解析，新旧关系未知，跳过发布（fail-closed）。"
+            exit 0
+        fi
+        if pve_tools_version_gt "$VERSION_FILE_VERSION" "$DIST_ONLINE_VERSION"; then
+            echo "dist 产物版本($DIST_ONLINE_VERSION)落后于源码版本($VERSION_FILE_VERSION)，自愈补发。"
+            NEED_PUBLISH=true
+        else
+            echo "dist 产物版本($DIST_ONLINE_VERSION)不落后于源码版本($VERSION_FILE_VERSION)，跳过发布。"
+            exit 0
+        fi
+    else
+        echo "dist 分支不存在，执行首次发布。"
         NEED_PUBLISH=true
     fi
 fi
