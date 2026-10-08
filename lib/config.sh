@@ -3,8 +3,8 @@
 # Copyright (C) 2026 Ciriu Networks
 
 # 版本信息
-CURRENT_VERSION="11.3.1"
-BUILD_NICKNAME="Odette"
+CURRENT_VERSION="12.0.0"
+BUILD_NICKNAME="Vesna"
 VERSION_FILE_URL="https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/VERSION"
 UPDATE_FILE_URL="https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/UPDATE"
 # 自更新必须下载 Release 资产（构建产物单文件完整版）。
@@ -267,6 +267,9 @@ HOST_NETWORK_INTERFACES_FILE="/etc/network/interfaces"
 HOST_NETWORK_INTERFACES_STAGED_FILE="/etc/network/interfaces.new"
 HOST_NETWORK_EXPORT_DIR="/var/lib/pve-tools/network-firewall-exports"
 PVE_CLUSTER_FIREWALL_FILE="/etc/pve/firewall/cluster.fw"
+# Intel 核显 SR-IOV：本工具写入 i915.xelp_enable_ccs 时留存的归属标记。
+# 只有存在该标记时，清理/切换流程才会移除该参数，避免误删用户自行添加的同名参数。
+INTEL_SRIOV_CCS_FLAG_FILE="/var/lib/pve-tools/intel-sriov-ccs-param"
 
 # 安装器路径约定（与入口 PVE-Tools.sh 中 PVE_TOOLS_INSTALL_* 默认值保持一致）
 # 入口脚本不加载本文件，两处常量需同步维护。

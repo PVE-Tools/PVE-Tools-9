@@ -338,10 +338,12 @@ remove_block() {
 
 # 检查 GRUB_CMDLINE_LINUX_DEFAULT 是否已含指定参数（按 key 精确匹配，不受注释/其他行干扰）
 # 用法: grub_has_param "intel_iommu=on" 或 grub_has_param "intel_iommu"
+#       grub_has_param <参数> [grub 文件路径]（第二参数仅用于测试，默认 /etc/default/grub）
 grub_has_param() {
     local param_key="${1%%=*}"
+    local grub_file="${2:-/etc/default/grub}"
     local current_line current_params
-    current_line=$(grep '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub 2>/dev/null) || return 1
+    current_line=$(grep '^GRUB_CMDLINE_LINUX_DEFAULT=' "$grub_file" 2>/dev/null) || return 1
     current_params=$(echo "$current_line" | sed 's/^GRUB_CMDLINE_LINUX_DEFAULT="\(.*\)"$/\1/')
     local -a items=()
     read -r -a items <<< "$current_params"
@@ -353,9 +355,10 @@ grub_has_param() {
 }
 
 # 添加 GRUB 参数（幂等操作，不会重复添加）
-# 用法: grub_add_param "intel_iommu=on"
+# 用法: grub_add_param "intel_iommu=on" [grub 文件路径]（第二参数仅用于测试）
 grub_add_param() {
     local param="$1"
+    local grub_file="${2:-/etc/default/grub}"
 
     if [[ -z "$param" ]]; then
         log_error "grub_add_param: 缺少参数"
@@ -363,10 +366,10 @@ grub_add_param() {
     fi
 
     # 备份 GRUB 配置
-    backup_file "/etc/default/grub"
+    backup_file "$grub_file"
 
     # 读取当前的 GRUB_CMDLINE_LINUX_DEFAULT 值
-    local current_line=$(grep '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub)
+    local current_line=$(grep '^GRUB_CMDLINE_LINUX_DEFAULT=' "$grub_file")
 
     if [[ -z "$current_line" ]]; then
         log_error "未找到 GRUB_CMDLINE_LINUX_DEFAULT 配置"
@@ -391,16 +394,22 @@ grub_add_param() {
 
     local new_params="${kept[*]}"
 
-    # 写回配置文件
-    sed -i "s|^GRUB_CMDLINE_LINUX_DEFAULT=.*|GRUB_CMDLINE_LINUX_DEFAULT=\"$new_params\"|" /etc/default/grub
+    # 写回配置文件（失败必须如实报错，不能报告成功）
+    if ! sed -i "s|^GRUB_CMDLINE_LINUX_DEFAULT=.*|GRUB_CMDLINE_LINUX_DEFAULT=\"$new_params\"|" "$grub_file"; then
+        log_error "写入 GRUB 配置失败: $grub_file（参数未生效: $param）"
+        return 1
+    fi
 
     log_success "GRUB 参数已添加: $param"
+    return 0
 }
 
 # 删除 GRUB 参数（精确删除，不影响其他参数）
 # 用法: grub_remove_param "intel_iommu=on" 或 grub_remove_param "intel_iommu"
+#       grub_remove_param <参数> [grub 文件路径]（第二参数仅用于测试）
 grub_remove_param() {
     local param="$1"
+    local grub_file="${2:-/etc/default/grub}"
 
     if [[ -z "$param" ]]; then
         log_error "grub_remove_param: 缺少参数"
@@ -408,10 +417,10 @@ grub_remove_param() {
     fi
 
     # 备份 GRUB 配置
-    backup_file "/etc/default/grub"
+    backup_file "$grub_file"
 
     # 读取当前的 GRUB_CMDLINE_LINUX_DEFAULT 值
-    local current_line=$(grep '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub)
+    local current_line=$(grep '^GRUB_CMDLINE_LINUX_DEFAULT=' "$grub_file")
 
     if [[ -z "$current_line" ]]; then
         log_error "未找到 GRUB_CMDLINE_LINUX_DEFAULT 配置"
@@ -435,10 +444,14 @@ grub_remove_param() {
 
     local new_params="${kept[*]}"
 
-    # 写回配置文件
-    sed -i "s|^GRUB_CMDLINE_LINUX_DEFAULT=.*|GRUB_CMDLINE_LINUX_DEFAULT=\"$new_params\"|" /etc/default/grub
+    # 写回配置文件（失败必须如实报错，不能报告成功）
+    if ! sed -i "s|^GRUB_CMDLINE_LINUX_DEFAULT=.*|GRUB_CMDLINE_LINUX_DEFAULT=\"$new_params\"|" "$grub_file"; then
+        log_error "写入 GRUB 配置失败: $grub_file（参数未删除: $param）"
+        return 1
+    fi
 
     log_success "GRUB 参数已删除: $param"
+    return 0
 }
 
 # ============ GRUB 参数幂等管理函数结束 ============
