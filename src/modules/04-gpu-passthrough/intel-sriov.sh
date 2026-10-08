@@ -576,6 +576,9 @@ vfio_virqfd"
     if ! sriov_should_write_grub "$boot_mode"; then
         if [[ "$ccs0_action" == "add" ]]; then
             echo "  • CCS0 兼容模式: 待手动添加 i915.xelp_enable_ccs=1（见下方引导方式提醒）"
+        elif [[ "$ccs0_action" == "remove" ]]; then
+            echo "  • CCS0 兼容模式: 未启用；本次未自动移除（非 GRUB 引导，已跳过 GRUB 写入）"
+            echo "    此前写入 /etc/default/grub 的 i915.xelp_enable_ccs 如需去除请手动编辑，并检查 /etc/kernel/cmdline 是否含同名参数"
         else
             echo "  • CCS0 兼容模式: 未启用（保留上游默认行为）"
         fi
