@@ -209,6 +209,17 @@ grub_e3="$(make_grub_file "quiet")"
 assert_true "Case E 无归属、无参数时正常返回" sriov_remove_ccs_param_if_owned "$grub_e3"
 assert_eq "Case E 未受影响的配置不变" "quiet" "$(cmdline_params "$grub_e3")"
 
+# 移除失败（配置文件不可读/不存在）-> 返回失败且保留归属标记，避免「参数仍在、标记已丢」
+grub_e4="$(make_grub_file "intel_iommu=on")"
+grub_add_param "i915.xelp_enable_ccs=1" "$grub_e4"
+rm -f "$INTEL_SRIOV_CCS_FLAG_FILE"
+sriov_mark_ccs_param_owned
+assert_false "移除失败时返回非 0" \
+    sriov_remove_ccs_param_if_owned "$TMP_DIR/not-exist.conf" 2>/dev/null
+assert_true "移除失败时保留归属标记" sriov_ccs_param_owned
+assert_true "移除失败时原参数仍在" grub_has_param "i915.xelp_enable_ccs" "$grub_e4"
+rm -f "$INTEL_SRIOV_CCS_FLAG_FILE"
+
 echo "== 引导方式识别（Case I）=="
 
 # bash 允许函数名包含 '-'，可用于遮蔽真实命令，保证结果可复现
@@ -240,6 +251,13 @@ assert_eq "回退 proxmox-boot-tool 状态识别 grub" "grub" "$(sriov_detect_bo
 
 unset -f efibootmgr
 unset -f proxmox-boot-tool
+
+echo "== GRUB 写入守卫（仅 GRUB 引导才写 /etc/default/grub）=="
+
+assert_true "引导方式为 grub 时写入 GRUB 参数" sriov_should_write_grub "grub"
+assert_false "systemd-boot 时不写入 GRUB 参数" sriov_should_write_grub "systemd-boot"
+assert_false "引导方式未知时不写入 GRUB 参数" sriov_should_write_grub "unknown"
+assert_false "引导方式为空时不写入 GRUB 参数" sriov_should_write_grub ""
 
 echo "== 核显平台提示（仅提示，不阻断）=="
 
@@ -274,6 +292,14 @@ if [[ -n "$dkms_prompt_line" && -n "$first_add_line" && "$dkms_prompt_line" -lt 
 else
     fail "DKMS 版本选择发生在首次 GRUB 参数写入之前" \
         "提示行号 < grub_add_param 行号" "提示=$dkms_prompt_line add=$first_add_line"
+fi
+
+guard_line="$(awk -v s="$fn_start" 'NR > s && /sriov_should_write_grub "\$boot_mode"/ {print NR; exit}' "$SRC")"
+if [[ -n "$guard_line" && -n "$first_add_line" && "$guard_line" -lt "$first_add_line" ]]; then
+    pass "GRUB 写入前先经过引导方式守卫"
+else
+    fail "GRUB 写入前先经过引导方式守卫" \
+        "守卫行号 < grub_add_param 行号" "守卫=$guard_line add=$first_add_line"
 fi
 
 # i915 路线只应写入 i915.* 参数；注释中引用上游文档不算代码命中

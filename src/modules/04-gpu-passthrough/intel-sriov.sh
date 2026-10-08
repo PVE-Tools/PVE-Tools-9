@@ -117,6 +117,12 @@ sriov_detect_boot_mode() {
     return 0
 }
 
+# 是否需要写入 GRUB 参数：只有确认使用 GRUB 引导时才写入，
+# 其余引导方式（systemd-boot / 无法确认）跳过 GRUB 写入，改由流程末尾给出准确的手动步骤
+sriov_should_write_grub() {
+    [[ "${1:-}" == "grub" ]]
+}
+
 # 从 PCI 设备描述（pci.ids 名称）判断核显平台，仅用于提示，不阻断用户选择
 # 输出: xelp | rocketlake | non-xelp | unknown
 #   上游 i915 实现的 Xe_LP 集合为 tgl/adl_s/adl_p/dg1（RPL 复用 adl_*），Rocket Lake 不在其中；
@@ -157,7 +163,11 @@ sriov_remove_ccs_param_if_owned() {
     local grub_file="${1:-/etc/default/grub}"
 
     if sriov_ccs_param_owned; then
-        grub_remove_param "i915.xelp_enable_ccs" "$grub_file"
+        # 移除失败时保留归属标记并返回失败：避免「参数仍在文件里、标记已丢」而失去后续清理能力
+        if ! grub_remove_param "i915.xelp_enable_ccs" "$grub_file"; then
+            log_error "移除 i915.xelp_enable_ccs 失败，已保留归属标记以便后续重试"
+            return 1
+        fi
         sriov_unmark_ccs_param_owned
         echo -e "  ${CYAN}提示:${NC} 已移除本工具此前写入的 i915.xelp_enable_ccs"
     elif grub_has_param "i915.xelp_enable_ccs" "$grub_file"; then
@@ -369,74 +379,83 @@ igpu_sriov_setup() {
 
     echo -e "✓ 软件包安装完成"
 
-    # 备份并修改 GRUB 配置
-    echo "配置 GRUB 引导参数..."
-    backup_file "/etc/default/grub"
-
-    # 记录改动前的命令行，只有确实发生变化时才重新生成引导配置
-    grub_cmdline_before="$(grep '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub 2>/dev/null || true)"
-
-    # 使用幂等的 GRUB 参数管理函数
-    echo "配置 GRUB 参数..."
-
-    grub_write_failed=0
-
-    # 移除旧的 GVT-g 配置（如果有）
-    grub_remove_param "i915.enable_gvt" || grub_write_failed=1
-    grub_remove_param "pcie_acs_override" || grub_write_failed=1
-
-    # 添加 SR-IOV 参数（幂等操作，不会重复添加）
-    # 针对 6.8+ 内核，必须屏蔽 xe 驱动以防止冲突
-    # 参考: https://github.com/strongtz/i915-sriov-dkms
-    grub_add_param "intel_iommu=on" || grub_write_failed=1
-    grub_add_param "iommu=pt" || grub_write_failed=1
-    grub_add_param "i915.enable_guc=3" || grub_write_failed=1
-    grub_add_param "i915.max_vfs=7" || grub_write_failed=1
-    grub_add_param "module_blacklist=xe" || grub_write_failed=1
-
     # CCS0 兼容参数：按「用户选择 + 驱动版本支持 + 参数归属」三要素决定增删
     ccs0_owned=0
     sriov_ccs_param_owned && ccs0_owned=1
     ccs0_action="$(sriov_ccs_param_action "$ccs0_want" "$ccs0_supported" "$ccs0_owned")"
-    case "$ccs0_action" in
-        add)
-            if grub_add_param "i915.xelp_enable_ccs=1"; then
-                sriov_mark_ccs_param_owned
-                echo -e "✓ 已启用 CCS0 兼容模式: i915.xelp_enable_ccs=1"
-            else
-                grub_write_failed=1
-            fi
-            ;;
-        remove)
-            sriov_remove_ccs_param_if_owned || grub_write_failed=1
-            ;;
-        skip-unsupported)
-            log_warn "所选 release ${dkms_tag} 不提供 xelp_enable_ccs 参数，跳过 CCS0 配置"
-            ;;
-        *)
-            # 未启用 CCS0 且参数非本工具写入：保持现状（不覆盖用户自己的配置）
-            ;;
-    esac
 
-    if [[ $grub_write_failed -ne 0 ]]; then
-        log_error "GRUB 参数写入未全部成功，请检查 /etc/default/grub 后重试"
-        pause_function
-        return 1
-    fi
+    # GRUB 参数写入只对 GRUB 引导有效：其余引导方式跳过写入，也就不会因 GRUB 步骤失败
+    # 而中断后续的内核模块、initramfs 与驱动安装，改由流程末尾给出准确的手动步骤
+    if sriov_should_write_grub "$boot_mode"; then
+        # 备份并修改 GRUB 配置
+        echo "配置 GRUB 引导参数..."
+        backup_file "/etc/default/grub"
 
-    echo -e "✓ GRUB 配置已更新 (已添加 module_blacklist=xe 以兼容 PVE 9.1)"
+        # 记录改动前的命令行，只有确实发生变化时才重新生成引导配置
+        grub_cmdline_before="$(grep '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub 2>/dev/null || true)"
 
-    # 更新 GRUB：仅在参数确有变化时执行
-    grub_cmdline_after="$(grep '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub 2>/dev/null || true)"
-    if [[ "$grub_cmdline_before" == "$grub_cmdline_after" ]]; then
-        echo "GRUB 参数无变化，跳过 update-grub"
-    else
-        echo "更新 GRUB..."
-        update-grub || {
-            echo -e "更新 GRUB 失败"
+        # 使用幂等的 GRUB 参数管理函数
+        echo "配置 GRUB 参数..."
+
+        grub_write_failed=0
+
+        # 移除旧的 GVT-g 配置（如果有）
+        grub_remove_param "i915.enable_gvt" || grub_write_failed=1
+        grub_remove_param "pcie_acs_override" || grub_write_failed=1
+
+        # 添加 SR-IOV 参数（幂等操作，不会重复添加）
+        # 针对 6.8+ 内核，必须屏蔽 xe 驱动以防止冲突
+        # 参考: https://github.com/strongtz/i915-sriov-dkms
+        grub_add_param "intel_iommu=on" || grub_write_failed=1
+        grub_add_param "iommu=pt" || grub_write_failed=1
+        grub_add_param "i915.enable_guc=3" || grub_write_failed=1
+        grub_add_param "i915.max_vfs=7" || grub_write_failed=1
+        grub_add_param "module_blacklist=xe" || grub_write_failed=1
+
+        case "$ccs0_action" in
+            add)
+                if grub_add_param "i915.xelp_enable_ccs=1"; then
+                    sriov_mark_ccs_param_owned
+                    echo -e "✓ 已启用 CCS0 兼容模式: i915.xelp_enable_ccs=1"
+                else
+                    grub_write_failed=1
+                fi
+                ;;
+            remove)
+                sriov_remove_ccs_param_if_owned || grub_write_failed=1
+                ;;
+            skip-unsupported)
+                log_warn "所选 release ${dkms_tag} 不提供 xelp_enable_ccs 参数，跳过 CCS0 配置"
+                ;;
+            *)
+                # 未启用 CCS0 且参数非本工具写入：保持现状（不覆盖用户自己的配置）
+                ;;
+        esac
+
+        if [[ $grub_write_failed -ne 0 ]]; then
+            log_error "GRUB 参数写入未全部成功，请检查 /etc/default/grub 后重试"
             pause_function
             return 1
-        }
+        fi
+
+        echo -e "✓ GRUB 配置已更新 (已添加 module_blacklist=xe 以兼容 PVE 9.1)"
+
+        # 更新 GRUB：仅在参数确有变化时执行
+        grub_cmdline_after="$(grep '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub 2>/dev/null || true)"
+        if [[ "$grub_cmdline_before" == "$grub_cmdline_after" ]]; then
+            echo "GRUB 参数无变化，跳过 update-grub"
+        else
+            echo "更新 GRUB..."
+            update-grub || {
+                echo -e "更新 GRUB 失败"
+                pause_function
+                return 1
+            }
+        fi
+    else
+        echo
+        echo -e "${YELLOW}已跳过 GRUB 参数写入${NC}（当前引导方式: ${boot_mode}）"
+        echo "  本次只完成驱动与内核模块配置；内核参数请按流程结束时的提示手动写入"
     fi
 
     # 配置内核模块
@@ -549,8 +568,18 @@ vfio_virqfd"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo
     echo "配置摘要："
-    echo "  • 内核参数: intel_iommu=on iommu=pt i915.enable_guc=3 i915.max_vfs=7 module_blacklist=xe"
-    if [[ "$ccs0_action" == "add" ]]; then
+    if sriov_should_write_grub "$boot_mode"; then
+        echo "  • 内核参数: 已写入 GRUB (intel_iommu=on iommu=pt i915.enable_guc=3 i915.max_vfs=7 module_blacklist=xe)"
+    else
+        echo "  • 内核参数: 未写入 GRUB（非 GRUB 引导，需按下方提醒手动写入）"
+    fi
+    if ! sriov_should_write_grub "$boot_mode"; then
+        if [[ "$ccs0_action" == "add" ]]; then
+            echo "  • CCS0 兼容模式: 待手动添加 i915.xelp_enable_ccs=1（见下方引导方式提醒）"
+        else
+            echo "  • CCS0 兼容模式: 未启用（保留上游默认行为）"
+        fi
+    elif [[ "$ccs0_action" == "add" ]]; then
         echo "  • CCS0 兼容模式: 已启用 (i915.xelp_enable_ccs=1)"
     elif [[ "$ccs0_action" == "remove" ]]; then
         echo "  • CCS0 兼容模式: 已移除本工具此前写入的 i915.xelp_enable_ccs"
@@ -571,10 +600,17 @@ vfio_virqfd"
     echo -e "  • 只能直通虚拟核显 (00:02.1 ~ 00:02.$vfs_num)"
     echo -e "  • 虚拟机需要勾选 ROM-Bar 和 PCIE 选项"
     echo
-    if [[ "$boot_mode" != "grub" ]]; then
+    if ! sriov_should_write_grub "$boot_mode"; then
         echo "$UI_BORDER"
-        echo -e "  ${YELLOW}引导方式提醒:${NC} 本机引导方式为 ${boot_mode}，上方 GRUB 参数${RED}不会生效${NC}。"
-        echo "  请将以下参数写入 /etc/kernel/cmdline（同一行）后执行 proxmox-boot-tool refresh："
+        echo -e "  ${YELLOW}引导方式提醒:${NC} 本机引导方式为 ${boot_mode}，本次${RED}未写入 GRUB 参数${NC}。"
+        if [[ "$boot_mode" == "systemd-boot" ]]; then
+            echo "  请将以下参数写入 /etc/kernel/cmdline（同一行）后执行 proxmox-boot-tool refresh："
+        else
+            echo "  无法确认引导方式，请按实际情况处理："
+            echo "    · 若为 GRUB：写入 /etc/default/grub 的 GRUB_CMDLINE_LINUX_DEFAULT 后执行 update-grub"
+            echo "    · 若为 systemd-boot：写入 /etc/kernel/cmdline（同一行）后执行 proxmox-boot-tool refresh"
+            echo "  需要写入的参数："
+        fi
         echo -n "    intel_iommu=on iommu=pt i915.enable_guc=3 i915.max_vfs=7 module_blacklist=xe"
         if [[ "$ccs0_action" == "add" ]]; then
             echo -n " i915.xelp_enable_ccs=1"
