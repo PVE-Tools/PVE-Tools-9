@@ -87,6 +87,98 @@ kernel_package_normalize_input() {
     echo "proxmox-kernel-$kernel_version"
 }
 
+# 读取 Proxmox 官方内核固定 (pin) 机制记录的 release
+# proxmox-boot-tool kernel pin / next-boot 分别把内核 release 写入这两个文件的首行，
+# 与 proxmox-ve 的 pve-apt-hook 使用同一数据来源；文件不存在或为空时静默跳过。
+kernel_pinned_releases() {
+    local pin_file=""
+    local pinned=""
+
+    for pin_file in /etc/kernel/proxmox-boot-pin /etc/kernel/next-boot-pin; do
+        [[ -r "$pin_file" ]] || continue
+        pinned=""
+        IFS= read -r pinned < "$pin_file" || pinned=""
+        pinned="${pinned%%[[:space:]]*}"
+        [[ -n "$pinned" ]] || continue
+        printf '%s\n' "$pinned"
+    done
+
+    return 0
+}
+
+# 计算待清理的内核包（纯逻辑，无副作用，便于用 mock 输入验证）
+#
+# 用法: printf '%s\n' "${installed_packages[@]}" \
+#           | kernel_cleanup_select_removals <当前运行 release> [额外保护的 release...]
+#
+# 保护集合 = 最新 2 个内核 release ∪ 当前运行内核 release ∪ 额外保护 release(pin)
+#   - 版本判定以 kernel release 为基本单位（signed / unsigned 视为同一 release）
+#   - 输出: 待删除的内核包名，每行一个
+#   - 返回: 0 计算成功；1 输入无法可靠解析（调用方必须放弃自动删除）
+kernel_cleanup_select_removals() {
+    local current_release="$1"
+    shift
+    local -a extra_protected=("$@")
+    local keep_count=2
+
+    if [[ -z "$current_release" ]]; then
+        return 1
+    fi
+
+    local package=""
+    local release=""
+    local protected=""
+    local i=0
+    local current_found=0
+    local -a installed_packages=()
+    local -a installed_releases=()
+    local -a sorted_releases=()
+    local -A protected_map=()
+
+    while IFS= read -r package; do
+        package="${package%%[[:space:]]*}"
+        [[ -n "$package" ]] || continue
+        # 包名无法解析时不允许猜测，交由调用方走 fail-safe
+        if ! release="$(kernel_package_release_from_name "$package")"; then
+            return 1
+        fi
+        installed_packages+=("$package")
+        installed_releases+=("$release")
+        if [[ "$release" == "$current_release" ]]; then
+            current_found=1
+        fi
+    done
+
+    [[ ${#installed_packages[@]} -gt 0 ]] || return 1
+    # 当前运行内核必须能对应到某个已安装包，否则放弃自动删除
+    [[ $current_found -eq 1 ]] || return 1
+
+    mapfile -t sorted_releases < <(printf '%s\n' "${installed_releases[@]}" | sort -Vu)
+    if [[ ${#sorted_releases[@]} -lt $keep_count ]]; then
+        keep_count=${#sorted_releases[@]}
+    fi
+
+    for ((i = ${#sorted_releases[@]} - keep_count; i < ${#sorted_releases[@]}; i++)); do
+        protected_map["${sorted_releases[$i]}"]=1
+    done
+    protected_map["$current_release"]=1
+    for protected in "${extra_protected[@]}"; do
+        [[ -n "$protected" ]] || continue
+        protected_map["$protected"]=1
+    done
+
+    # 按已安装包逐个判定：受保护 release 的 signed / unsigned 包一并保留
+    for i in "${!installed_packages[@]}"; do
+        release="${installed_releases[$i]}"
+        if [[ -n "${protected_map[$release]:-}" ]]; then
+            continue
+        fi
+        printf '%s\n' "${installed_packages[$i]}"
+    done
+
+    return 0
+}
+
 # 检测当前内核版本
 check_kernel_version() {
     log_info "检测当前内核信息..."
@@ -277,51 +369,86 @@ set_default_kernel() {
     fi
 }
 
-# 删除旧内核（保留最近2个版本）
+# 删除旧内核（始终保留当前运行内核 + 最新 2 个内核 release）
 remove_old_kernels() {
     log_info "清理旧内核..."
-    
+
+    local current_release=""
+    current_release="$(uname -r)"
+
     # 获取所有已安装的内核
     local installed_kernels
     installed_kernels="$(get_installed_kernel_packages "ii")"
     local -a kernel_list
     mapfile -t kernel_list < <(printf '%s\n' "$installed_kernels" | sed '/^$/d')
-    local kernel_count=${#kernel_list[@]}
-    
-    if [[ $kernel_count -le 2 ]]; then
-        log_info "当前只有 $kernel_count 个内核，无需清理"
+
+    if [[ ${#kernel_list[@]} -eq 0 ]]; then
+        log_warn "未检测到任何已安装的内核包，跳过清理"
         return 0
     fi
-    
-    # 计算需要保留的内核数量（保留最新的2个）
-    local keep_count=2
-    local remove_count=$((kernel_count - keep_count))
-    
-    echo -e "${YELLOW}将删除 $remove_count 个旧内核，保留最新的 $keep_count 个内核${NC}"
-    
-    # 获取要删除的内核列表（最旧的几个）
-    local kernels_to_remove=("${kernel_list[@]:0:$remove_count}")
-    
+
+    # 额外保护：proxmox-boot-tool kernel pin / next-boot 固定的内核 release
+    local -a pinned_releases
+    mapfile -t pinned_releases < <(kernel_pinned_releases)
+
+    # 计算待删除列表；无法可靠识别当前运行内核对应的包时放弃删除（fail-safe）
+    local removals=""
+    if ! removals="$(printf '%s\n' "${kernel_list[@]}" | kernel_cleanup_select_removals "$current_release" "${pinned_releases[@]}")"; then
+        log_error "无法可靠识别当前运行内核 $current_release 对应的已安装内核包，已放弃自动清理"
+        log_warn "为防止误删正在运行的内核，本次不执行任何删除操作，请手动确认后再处理"
+        return 1
+    fi
+
+    local -a kernels_to_remove
+    mapfile -t kernels_to_remove < <(printf '%s\n' "$removals" | sed '/^$/d')
+
+    echo -e "${CYAN}当前运行内核: ${GREEN}$current_release${NC} ${YELLOW}(始终保留)${NC}"
+    if [[ ${#pinned_releases[@]} -gt 0 ]]; then
+        echo -e "${CYAN}已固定 (pin) 内核: ${GREEN}${pinned_releases[*]}${NC} ${YELLOW}(始终保留)${NC}"
+    fi
+
+    if [[ ${#kernels_to_remove[@]} -eq 0 ]]; then
+        log_success "没有需要清理的旧内核（保留当前运行内核与最新 2 个内核 release）"
+        return 0
+    fi
+
+    echo -e "${YELLOW}将删除以下 ${#kernels_to_remove[@]} 个旧内核包（保留最新 2 个内核 release 与当前运行内核）：${NC}"
+    local kernel=""
+    for kernel in "${kernels_to_remove[@]}"; do
+        echo -e "  ${RED}•${NC} $kernel"
+    done
+
+    local confirm=""
     read -p "是否继续？(y/N): " confirm
     if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
         log_info "取消内核清理"
         return 0
     fi
-    
+
     # 删除旧内核
+    local removed_count=0
+    local failed_count=0
     for kernel in "${kernels_to_remove[@]}"; do
         log_info "正在删除内核: $kernel"
         if apt-get remove -y --purge "$kernel"; then
             log_success "内核 $kernel 删除成功"
+            removed_count=$((removed_count + 1))
         else
             log_error "删除内核 $kernel 失败"
+            failed_count=$((failed_count + 1))
         fi
     done
-    
+
     # 更新引导配置
     update_grub_config
-    
-    log_success "旧内核清理完成"
+
+    if [[ $failed_count -gt 0 ]]; then
+        log_error "旧内核清理未全部完成：成功 $removed_count 个，失败 $failed_count 个"
+        log_tips "失败的内核包仍保留在系统中，请根据上方 apt 输出手动处理后重试"
+        return 1
+    fi
+
+    log_success "旧内核清理完成（共删除 $removed_count 个内核包）"
     return 0
 }
 
