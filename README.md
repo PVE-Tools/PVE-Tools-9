@@ -8,7 +8,7 @@
 [![Shell Script](https://img.shields.io/badge/Shell-Script-4EAA25?logo=gnu-bash&logoColor=white)](https://www.gnu.org/software/bash/)
 [![Proxmox VE](https://img.shields.io/badge/Proxmox-VE%209.x-E57000?logo=proxmox&logoColor=white)](https://www.proxmox.com/)
 [![Debian](https://img.shields.io/badge/Debian-13%20(Trixie)-A81D33?logo=debian&logoColor=white)](https://www.debian.org/)
-[![Release](https://img.shields.io/badge/Release-v11.3.1-orange)](https://github.com/PVE-Tools/PVE-Tools-9/releases)
+[![Release](https://img.shields.io/badge/Release-v12.0.0-orange)](https://github.com/PVE-Tools/PVE-Tools-9/releases)
 
 <img src="./images/main.png" width="100%" alt="PVE Tools Pro" />
 

@@ -183,9 +183,10 @@ foo_menu_dispatch() {      # case 处理选项；未识别 return 1；末尾必�
 | 构建一致性 | 源码与 dist 的函数集合双向 diff | CI 强制（PR 与发布前均执行） |
 | 版本一致性 | `CURRENT_VERSION` == `VERSION` == 发布 tag；UPDATE 首行含当前版本 | CI 强制 |
 | 安全扫描 | dist 中禁 `eval`、未引号变量 `rm -rf`、`source` 语句 | CI 强制 |
+| 回归测试 | `bash tests/*.sh`（纯逻辑 + mock，本地手动执行） | 未接入 CI；覆盖内核清理与 SR-IOV CCS0 决策路径 |
 | 功能测试 | 手动在 PVE 9.x 环境验证 | 无自动化 E2E 测试 |
 
-**注意**: 本项目没有自动化单元测试。功能验证依赖人工在真实或模拟的 PVE 9.x 环境中测试。建议每次 PR 同时验证 `bash dev.sh` 与 `bash build.sh && bash -n dist/PVE-Tools.sh`。
+**注意**: 本项目没有端到端自动化测试，功能验证仍依赖人工在真实或模拟的 PVE 9.x 环境中进行；核心易错逻辑已抽为纯函数并由 `tests/` 下的本地回归脚本覆盖。建议每次 PR 同时验证 `bash dev.sh`、`bash tests/*.sh` 与 `bash build.sh && bash -n dist/PVE-Tools.sh`。
 
 ## 编码规范
 
@@ -216,6 +217,7 @@ foo_menu_dispatch() {      # case 处理选项；未识别 return 1；末尾必�
 
 | 日期 | 变更 | 来源 |
 |---|---|---|
+| 2026-10-08 | v12.0.0 (Vesna)：旧内核清理保护当前运行内核 / 最新两个 release / pin 内核（#107）；Intel 核显 SR-IOV 新增 CCS0 兼容选项、DKMS 版本与内核范围核对、systemd-boot 提示与参数归属清理（#106）；GRUB 参数写入失败不再谎报成功；新增 tests/ 本地回归测试（87 项） | GitHub Issue |
 | 2026-09-10 | 发版链路迁移腾讯 CNB 双源架构：入口/自更新 CNB 优先 + GitHub 兜底，移除 ghfast 依赖；新增 .cnb.yml 发布流水线（ci/cnb-publish.sh） | CNB 迁移计划 |
 | 2026-09-10 | 新增安装环境诊断 (doctor)：菜单 8 检测 v10 旧引导残留/无标记别名遮蔽并确认清理；入口 bin 安装后遮蔽警告 | 安装环境问题排查 |
 | 2026-08-19 | 硬件直通一键配置 (IOMMU) 新增可选增强参数：iommu=pt 与 pcie_acs_override=downstream,multifunction（强制拆分 IOMMU 组，解决 GPU 与系统盘同组时 vfio-pci 误接管系统盘问题）；关闭流程同步移除 | GitHub Issue |

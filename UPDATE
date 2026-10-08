@@ -1,3 +1,16 @@
+v12.0.0
+- 【安全】旧内核清理不再删除正在运行的内核（Issue #107）：保护集合改为「当前运行内核 release ∪ 最新 2 个内核 release ∪ proxmox-boot-tool 已固定的内核」；版本判定以 kernel release 为单位，signed / unsigned 视为同一版本；无法解析包名或运行内核无法对应到已安装包时放弃自动清理并告警，不再猜测后删除
+- 【安全】旧内核清理不再隐式改变 signed / unsigned 形态：受保护 release 的两个 flavor 都不进入删除列表，避免 apt 为满足元包依赖补装未签名内核而影响 Secure Boot 启动
+- 旧内核清理：删除前逐条列出待删内核包；任一删除失败时不再打印「旧内核清理完成」，改为报告成功 / 失败数量并返回失败
+- Intel 核显 SR-IOV 新增 CCS0 兼容模式（Issue #106）：i915-sriov-dkms 自 2026.09.16 起在 Xe_LP 平台默认关闭 CCS0，现可在配置时按需写入 i915.xelp_enable_ccs=1（默认不启用，仅 i915 路线，不与 xe 参数叠加）
+- Intel 核显 SR-IOV：DKMS 版本询问前移到 GRUB 写入之前，并按上游 release 声明的内核范围核对当前内核；上游未声明范围的版本明确提示「无法自动核对」而不假装兼容；默认 DKMS 版本保持不变
+- Intel 核显 SR-IOV：识别核显平台（Xe_LP 的 Tiger Lake / Alder Lake / Raptor Lake，以及 Rocket Lake 与其他非 Xe_LP）并给出提示，不会在未经确认的情况下启用 CCS0
+- Intel 核显 SR-IOV：新增 CCS0 参数归属标记，仅清理本工具写入的参数；切换 GVT-g 或移除核显虚拟化时按归属清理，不误删用户自行添加的同名参数
+- Intel 核显 SR-IOV：识别引导方式，systemd-boot 主机明确提示 GRUB 参数不生效，并给出 /etc/kernel/cmdline 需写入的完整参数与 proxmox-boot-tool refresh 步骤；核显虚拟化状态检查新增 CCS0 是否真正生效的校验
+- GRUB 参数管理加固：写入失败不再报告成功；grub_add_param / grub_remove_param / grub_has_param 支持指定配置文件路径（便于测试）；SR-IOV 配置仅在参数确有变化时才执行 update-grub
+- 新增本地回归测试：tests/kernel-cleanup-test.sh（21 项）与 tests/intel-sriov-ccs-test.sh（66 项），覆盖上述两个 Issue 的决策路径与参数文件语义
+- Build 代号更新为 Vesna
+
 v11.3.1
 - 发布链路可靠性加固：CNB 流水线新增并发锁与 force-with-lease 租约推送，镜像与 checkout 步骤固定 digest/SHA 供应链钉定；逐源文件语法检查，shellcheck 缺失自动安装、仍缺失则拒绝发布；发布触发改用语义化版本比较，仅在线产物落后时补发，防止覆盖 hotfix 产物
 - 安装环境诊断（doctor）修正生效：旧引导特征锚定识别（注释提及不再误判）、rc 符号链接解析到真实目标后操作、无法识别文件与多副本共存正确计入问题数、function 声明形态纳入遮蔽检测（v11.3.0 发版后合入的修复，随本版本首次进入发布产物）

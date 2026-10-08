@@ -3,8 +3,8 @@
 # Copyright (C) 2026 Ciriu Networks
 
 # 版本信息
-CURRENT_VERSION="11.3.1"
-BUILD_NICKNAME="Odette"
+CURRENT_VERSION="12.0.0"
+BUILD_NICKNAME="Vesna"
 VERSION_FILE_URL="https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/VERSION"
 UPDATE_FILE_URL="https://raw.githubusercontent.com/PVE-Tools/PVE-Tools-9/main/UPDATE"
 # 自更新必须下载 Release 资产（构建产物单文件完整版）。
