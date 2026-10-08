@@ -95,6 +95,21 @@ igpu_verify() {
     fi
     echo
 
+    # 检查 CCS0 兼容参数（i915-sriov-dkms 2026.09.16 起为可选参数）
+    echo "7. 检查 CCS0 兼容参数（Xe_LP 平台）..."
+    if [ -f "/sys/module/i915/parameters/xelp_enable_ccs" ]; then
+        ccs0_value=$(cat /sys/module/i915/parameters/xelp_enable_ccs 2>/dev/null)
+        if [ "$ccs0_value" = "Y" ] || [ "$ccs0_value" = "1" ]; then
+            echo -e "  ✓ i915.xelp_enable_ccs = $ccs0_value (CCS0 兼容模式已启用)"
+        else
+            echo "  i915.xelp_enable_ccs = $ccs0_value (CCS0 兼容模式未启用)"
+            echo "  提示: 若 Windows 虚拟机无法加载核显驱动，可在 SR-IOV 配置中选择启用 CCS0 后重启"
+        fi
+    else
+        echo "  ! 当前 i915 模块未提供 xelp_enable_ccs 参数（驱动版本早于 2026.09.16 时属正常）"
+    fi
+    echo
+
     # 总结
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "  检查完成"
@@ -134,6 +149,8 @@ igpu_remove() {
     grub_remove_param "module_blacklist=xe"
     grub_remove_param "i915.enable_gvt"
     grub_remove_param "pcie_acs_override"
+    # 移除 SR-IOV 专用的 CCS0 兼容参数（仅移除本工具写入的，保留用户自行添加的同名参数）
+    sriov_remove_ccs_param_if_owned
 
     update-grub
     echo -e "  ✓ GRUB 配置已恢复"

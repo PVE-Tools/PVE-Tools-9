@@ -2,6 +2,170 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Ciriu Networks
 
+# ============ Intel SR-IOV (i915-sriov-dkms) 辅助逻辑 ============
+# 上游依据（strongtz/i915-sriov-dkms）：
+#   - 2026.09.16 起 Xe_LP 平台不再默认启用 CCS0（PR #484：改为可选，规避 GPU 初始化 -ETIME）；
+#     需要 CCS0 时按驱动添加 i915.xelp_enable_ccs=1 或 xe.xelp_enable_ccs=1（二者不叠加）。
+#   - 各 release 声明的内核支持范围不同，安装前需按当前内核核对。
+#   - 官方宿主机文档区分 GRUB（/etc/default/grub + update-grub）与
+#     systemd-boot（/etc/kernel/cmdline + proxmox-boot-tool refresh）。
+
+# 版本比较：$1 >= $2 时返回 0（点分版本号，兼容 2026.03.05.7 这类多段版本）
+sriov_version_ge() {
+    [[ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n 1)" == "$1" ]]
+}
+
+# 所选 DKMS release 是否提供 xelp_enable_ccs 参数（上游 2026.09.16 起）
+sriov_dkms_ccs0_supported() {
+    local ver="${1#v}"
+
+    [[ -n "$ver" ]] || return 1
+    sriov_version_ge "$ver" "2026.09.16"
+}
+
+# 所选 DKMS release 声明的内核支持范围，输出 "最小主次版本 最大主次版本"
+# 仅对上游明确声明过的分支给出范围；未声明的版本返回 1（不假装已确认兼容）
+sriov_dkms_kernel_range() {
+    local ver="${1#v}"
+
+    [[ -n "$ver" ]] || return 1
+
+    if sriov_version_ge "$ver" "2026.09.16"; then
+        echo "6.17 7.2"      # 2026.09.16 release 声明
+    elif sriov_version_ge "$ver" "2026.08.02"; then
+        echo "6.17 7.1"      # 2026.08.02 / 2026.08.08 / 2026.08.12 / 2026.09.14
+    elif sriov_version_ge "$ver" "2026.05.03"; then
+        echo "6.17 7.0"      # 2026.05.03 / 2026.05.06
+    elif sriov_version_ge "$ver" "2026.03.05"; then
+        echo "6.12 6.19"     # 2026.03.05.x 分支
+    elif [[ "$ver" == "2025.07.22" ]]; then
+        echo "6.8 6.12"      # README 中为 6.8~6.12 内核指定的 release
+    else
+        return 1
+    fi
+    return 0
+}
+
+# 内核主次版本（如 6.17.13-21-pve -> 6.17）是否落在 [min, max] 内
+sriov_kernel_in_range() {
+    local kernel_series="$1"
+    local min_series="$2"
+    local max_series="$3"
+
+    [[ -n "$kernel_series" ]] || return 1
+    sriov_version_ge "$kernel_series" "$min_series" && sriov_version_ge "$max_series" "$kernel_series"
+}
+
+# CCS0 参数处理决策（纯逻辑，便于用 mock 输入测试）
+#   $1=用户是否选择启用(1/0)  $2=所选驱动是否支持该参数(1/0)  $3=参数是否由本工具写入(1/0)
+# 输出: add | remove | skip-unsupported | noop
+#   - 用户启用且驱动支持 -> add（grub_add_param 按 key 覆盖旧值，不会重复）
+#   - 否则若参数由本工具写入（用户未启用或换回旧驱动）-> remove，恢复上游默认行为
+#   - 用户想启用但驱动版本不支持 -> skip-unsupported（不写入未知参数）
+#   - 其余 noop：不动用户自己添加的同名参数
+sriov_ccs_param_action() {
+    local want="$1"
+    local supported="$2"
+    local owned="$3"
+
+    if [[ "$want" == "1" && "$supported" == "1" ]]; then
+        echo "add"
+    elif [[ "$owned" == "1" ]]; then
+        echo "remove"
+    elif [[ "$want" == "1" ]]; then
+        echo "skip-unsupported"
+    else
+        echo "noop"
+    fi
+    return 0
+}
+
+# 识别当前引导方式：grub / systemd-boot / unknown
+# 本模块只写 /etc/default/grub，对 systemd-boot 引导不生效（需改 /etc/kernel/cmdline）。
+# 参考 PVE 文档「Determine which Bootloader is Used」：efibootmgr -v 查看当前 EFI 引导项，
+# 且文档明确说明"从运行中的系统判断并非 100% 准确"，因此这里只作为提示依据。
+sriov_detect_boot_mode() {
+    if command -v efibootmgr >/dev/null 2>&1; then
+        local entries="" current="" current_line=""
+        entries="$(efibootmgr -v 2>/dev/null || true)"
+        current="$(printf '%s\n' "$entries" | awk '/^BootCurrent:/{print $2; exit}')"
+        if [[ -n "$current" ]]; then
+            current_line="$(printf '%s\n' "$entries" | grep -E "^Boot${current}\\*?" | head -n 1 || true)"
+            case "$current_line" in
+                *systemd-boot*) echo "systemd-boot"; return 0 ;;
+                *grub*.efi*|*shim*.efi*) echo "grub"; return 0 ;;
+            esac
+        fi
+    fi
+
+    if command -v proxmox-boot-tool >/dev/null 2>&1; then
+        local status_out=""
+        status_out="$(proxmox-boot-tool status 2>/dev/null || true)"
+        case "$status_out" in
+            *systemd-boot*) echo "systemd-boot"; return 0 ;;
+            *grub*) echo "grub"; return 0 ;;
+        esac
+    fi
+
+    if [[ -s /etc/kernel/cmdline ]]; then
+        echo "systemd-boot"
+    elif [[ -f /etc/default/grub ]]; then
+        echo "grub"
+    else
+        echo "unknown"
+    fi
+    return 0
+}
+
+# 从 PCI 设备描述（pci.ids 名称）判断核显平台，仅用于提示，不阻断用户选择
+# 输出: xelp | rocketlake | non-xelp | unknown
+#   上游 i915 实现的 Xe_LP 集合为 tgl/adl_s/adl_p/dg1（RPL 复用 adl_*），Rocket Lake 不在其中；
+#   xe 实现为 graphics_xelp 且排除 Rocket Lake。非该集合的平台启用参数不会生效（无副作用）。
+sriov_gpu_platform_hint() {
+    local desc=""
+
+    desc="$(lspci -nn 2>/dev/null | grep -iE 'vga|display' | grep -i intel | head -n 1 || true)"
+    [[ -n "$desc" ]] || { echo "unknown"; return 0; }
+
+    case "$desc" in
+        *"Tiger Lake"*|*"Alder Lake"*|*"Raptor Lake"*) echo "xelp" ;;
+        *"Rocket Lake"*) echo "rocketlake" ;;
+        *"Meteor Lake"*|*"Lunar Lake"*|*"Arrow Lake"*|*"Arc"*) echo "non-xelp" ;;
+        *) echo "unknown" ;;
+    esac
+    return 0
+}
+
+# i915.xelp_enable_ccs 归属标记：仅当本工具写入过该参数时存在
+sriov_ccs_param_owned() {
+    [[ -f "$INTEL_SRIOV_CCS_FLAG_FILE" ]]
+}
+
+sriov_mark_ccs_param_owned() {
+    mkdir -p "$(dirname "$INTEL_SRIOV_CCS_FLAG_FILE")" >/dev/null 2>&1 || true
+    printf '%s\n' "i915.xelp_enable_ccs=1" > "$INTEL_SRIOV_CCS_FLAG_FILE" 2>/dev/null || true
+}
+
+sriov_unmark_ccs_param_owned() {
+    rm -f "$INTEL_SRIOV_CCS_FLAG_FILE"
+}
+
+# 仅移除由本工具写入的 i915.xelp_enable_ccs；用户自行添加的同名参数保持不动
+# 用法: sriov_remove_ccs_param_if_owned [grub 文件路径]（第二参数仅用于测试）
+# shellcheck disable=SC2120
+sriov_remove_ccs_param_if_owned() {
+    local grub_file="${1:-/etc/default/grub}"
+
+    if sriov_ccs_param_owned; then
+        grub_remove_param "i915.xelp_enable_ccs" "$grub_file"
+        sriov_unmark_ccs_param_owned
+        echo -e "  ${CYAN}提示:${NC} 已移除本工具此前写入的 i915.xelp_enable_ccs"
+    elif grub_has_param "i915.xelp_enable_ccs" "$grub_file"; then
+        echo -e "  ${YELLOW}提示:${NC} 检测到 i915.xelp_enable_ccs 但并非本工具写入，保留不动（如需移除请手动编辑 /etc/default/grub）"
+    fi
+    return 0
+}
+
 igpu_sriov_setup() {
     echo -e "${H2}开始配置 Intel 11-15代 SR-IOV 核显虚拟化${NC}"
     echo -e "详细原理与教程： ${CYAN}https://pve.u3u.icu/advanced/gpu-virtualization${NC}"
@@ -22,6 +186,27 @@ igpu_sriov_setup() {
     fi
 
     echo -e "${GREEN}✓ 内核版本检查通过: $(uname -r)${NC}"
+
+    # 引导方式检查：本功能写入的是 GRUB 参数（/etc/default/grub），
+    # systemd-boot 主机需改为编辑 /etc/kernel/cmdline 并执行 proxmox-boot-tool refresh
+    boot_mode="$(sriov_detect_boot_mode)"
+    if [[ "$boot_mode" != "grub" ]]; then
+        echo
+        echo "$UI_BORDER"
+        if [[ "$boot_mode" == "systemd-boot" ]]; then
+            log_warn "检测到本机使用 systemd-boot 引导，本功能不会修改 /etc/kernel/cmdline"
+        else
+            log_warn "无法确认本机引导方式（可能是 systemd-boot）"
+        fi
+        echo -e "  ${CYAN}本功能只写入 GRUB 参数${NC}：若本机使用 systemd-boot，这些参数${RED}不会生效${NC}。"
+        echo "  继续执行只会完成驱动与模块配置，内核参数需要你手动写入"
+        echo -e "  ${CYAN}/etc/kernel/cmdline${NC} 后执行 ${CYAN}proxmox-boot-tool refresh${NC}（流程结束时会列出完整参数）。"
+        echo "$UI_BORDER"
+        if ! confirm_action "是否仅继续安装驱动与模块配置（内核参数需手动添加）"; then
+            echo "用户取消操作"
+            return 0
+        fi
+    fi
 
     # 展示当前 GRUB 配置
     echo
@@ -76,6 +261,94 @@ igpu_sriov_setup() {
         return 0
     fi
 
+    # ── DKMS 版本选择 ──
+    # 必须在写入 GRUB 之前确定版本：CCS0 兼容参数只对 2026.09.16 及之后的 release 有意义，
+    # 且各 release 支持的内核范围不同，需要提前核对并提示。
+    echo
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "选择 i915-sriov-dkms 版本"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  提示: 请在浏览器访问 https://github.com/strongtz/i915-sriov-dkms/releases 选择匹配的版本"
+    echo "  各 release 声明的内核支持范围不同（例如 2026.09.16 为 6.17.x ~ 7.2.x，"
+    echo "  更老的内核需使用更早的 release），请按当前内核 $(uname -r) 选择"
+    echo "  输入格式：例如：2026.09.16"
+    echo "  不输入回车的默认版本为 2025.11.10，可能不兼容较新内核，故障表现在无法虚拟出 VFs"
+
+    default_dkms_version="2025.11.10"
+    read -p "请输入要安装的 release 版本号 [默认: ${default_dkms_version}]: " dkms_version_input
+    dkms_version_input=$(echo "$dkms_version_input" | xargs)
+
+    if [ -z "$dkms_version_input" ]; then
+        dkms_version_input="$default_dkms_version"
+    fi
+
+    # release 标签可能以 v 打头，但 deb 文件名不包含 v
+    dkms_asset_version=$(echo "$dkms_version_input" | sed 's/^[vV]//')
+    dkms_tag="$dkms_version_input"
+
+    dkms_url="https://github.com/strongtz/i915-sriov-dkms/releases/download/${dkms_tag}/i915-sriov-dkms_${dkms_asset_version}_amd64.deb"
+    dkms_file="/tmp/i915-sriov-dkms_${dkms_asset_version}_amd64.deb"
+
+    # 内核兼容性核对：仅在上游明确声明支持范围时给出结论
+    kernel_series="$(uname -r | awk -F'-' '{print $1}' | cut -d. -f1,2)"
+    dkms_kernel_range="$(sriov_dkms_kernel_range "$dkms_asset_version" || true)"
+    if [[ -n "$dkms_kernel_range" ]]; then
+        read -r dkms_kernel_min dkms_kernel_max <<< "$dkms_kernel_range"
+        if sriov_kernel_in_range "$kernel_series" "$dkms_kernel_min" "$dkms_kernel_max"; then
+            echo -e "  ${GREEN}✓${NC} 当前内核 $(uname -r) 在 ${dkms_tag} 声明的支持范围（${dkms_kernel_min}.x ~ ${dkms_kernel_max}.x）内"
+        else
+            log_warn "当前内核 $(uname -r) 不在 ${dkms_tag} 声明的支持范围（${dkms_kernel_min}.x ~ ${dkms_kernel_max}.x）内"
+            echo -e "  ${CYAN}提示:${NC} 内核与驱动不匹配时通常表现为无法创建 VFs，建议改用匹配的 release"
+            if ! confirm_action "内核与所选 release 可能不兼容，仍要继续安装"; then
+                echo "用户取消操作"
+                return 0
+            fi
+        fi
+    else
+        log_warn "上游未声明 ${dkms_tag} 支持的内核范围，无法自动核对内核兼容性"
+        echo -e "  ${CYAN}提示:${NC} 请自行确认该 release 与当前内核 $(uname -r) 是否匹配"
+    fi
+
+    # ── CCS0 兼容模式（可选）──
+    ccs0_want=0
+    ccs0_supported=0
+    if sriov_dkms_ccs0_supported "$dkms_asset_version"; then
+        ccs0_supported=1
+    fi
+
+    if [[ $ccs0_supported -eq 1 ]]; then
+        platform_hint="$(sriov_gpu_platform_hint)"
+        echo
+        echo "$UI_BORDER"
+        echo -e "  ${CYAN}CCS0 兼容模式（可选）${NC}"
+        echo "  上游自 2026.09.16 起不再为 Xe_LP 平台（Tiger Lake / Alder Lake / Raptor Lake）"
+        echo "  默认启用 CCS0；依赖 CCS0 的旧版客户机驱动（Windows 或旧内核）将无法正常工作。"
+        echo "  上游将该功能改为可选，是为了规避部分 Xe_LP 平台的 GPU 初始化超时（-ETIME）。"
+        case "$platform_hint" in
+            xelp)
+                echo -e "  本机核显: ${GREEN}检测为 Xe_LP 平台（TGL/ADL/RPL），该参数会生效${NC}" ;;
+            rocketlake)
+                echo -e "  本机核显: ${YELLOW}检测为 Rocket Lake，上游实现未纳入该参数，启用后很可能无效${NC}" ;;
+            non-xelp)
+                echo -e "  本机核显: ${YELLOW}检测为非 Xe_LP 平台，上游未在该平台启用 CCS0，参数大概率无效${NC}" ;;
+            *)
+                echo -e "  本机核显: ${YELLOW}未能从 PCI 描述识别平台，请自行确认是否为 Tiger Lake / Alder Lake / Raptor Lake${NC}" ;;
+        esac
+        echo
+        echo "  仅当满足以下条件时建议启用："
+        echo "    - 核显为 Tiger Lake / Alder Lake / Raptor Lake 等 Xe_LP 平台"
+        echo "    - Windows 虚拟机无法正常加载核显驱动（客户机驱动早于 2026.09.16 时依赖 CCS0）"
+        echo -e "  ${YELLOW}注意:${NC} 启用后存在 GPU 初始化兼容性风险；客户机驱动为 2026.09.16 及之后通常无需开启。"
+        echo "$UI_BORDER"
+        if confirm_action "是否启用 CCS0 兼容模式（i915.xelp_enable_ccs=1）"; then
+            ccs0_want=1
+        fi
+    else
+        echo
+        echo -e "  ${CYAN}说明:${NC} 所选 release ${dkms_tag} 早于 CCS0 默认行为变更（2026.09.16），"
+        echo "        该版本没有 i915.xelp_enable_ccs 参数，CCS0 行为由驱动自身决定，无需额外配置"
+    fi
+
     # 安装必要的软件包
     echo "安装必要的软件包..."
     apt-get update
@@ -100,31 +373,71 @@ igpu_sriov_setup() {
     echo "配置 GRUB 引导参数..."
     backup_file "/etc/default/grub"
 
+    # 记录改动前的命令行，只有确实发生变化时才重新生成引导配置
+    grub_cmdline_before="$(grep '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub 2>/dev/null || true)"
+
     # 使用幂等的 GRUB 参数管理函数
     echo "配置 GRUB 参数..."
 
+    grub_write_failed=0
+
     # 移除旧的 GVT-g 配置（如果有）
-    grub_remove_param "i915.enable_gvt"
-    grub_remove_param "pcie_acs_override"
+    grub_remove_param "i915.enable_gvt" || grub_write_failed=1
+    grub_remove_param "pcie_acs_override" || grub_write_failed=1
 
     # 添加 SR-IOV 参数（幂等操作，不会重复添加）
     # 针对 6.8+ 内核，必须屏蔽 xe 驱动以防止冲突
     # 参考: https://github.com/strongtz/i915-sriov-dkms
-    grub_add_param "intel_iommu=on"
-    grub_add_param "iommu=pt"
-    grub_add_param "i915.enable_guc=3"
-    grub_add_param "i915.max_vfs=7"
-    grub_add_param "module_blacklist=xe"
+    grub_add_param "intel_iommu=on" || grub_write_failed=1
+    grub_add_param "iommu=pt" || grub_write_failed=1
+    grub_add_param "i915.enable_guc=3" || grub_write_failed=1
+    grub_add_param "i915.max_vfs=7" || grub_write_failed=1
+    grub_add_param "module_blacklist=xe" || grub_write_failed=1
+
+    # CCS0 兼容参数：按「用户选择 + 驱动版本支持 + 参数归属」三要素决定增删
+    ccs0_owned=0
+    sriov_ccs_param_owned && ccs0_owned=1
+    ccs0_action="$(sriov_ccs_param_action "$ccs0_want" "$ccs0_supported" "$ccs0_owned")"
+    case "$ccs0_action" in
+        add)
+            if grub_add_param "i915.xelp_enable_ccs=1"; then
+                sriov_mark_ccs_param_owned
+                echo -e "✓ 已启用 CCS0 兼容模式: i915.xelp_enable_ccs=1"
+            else
+                grub_write_failed=1
+            fi
+            ;;
+        remove)
+            sriov_remove_ccs_param_if_owned || grub_write_failed=1
+            ;;
+        skip-unsupported)
+            log_warn "所选 release ${dkms_tag} 不提供 xelp_enable_ccs 参数，跳过 CCS0 配置"
+            ;;
+        *)
+            # 未启用 CCS0 且参数非本工具写入：保持现状（不覆盖用户自己的配置）
+            ;;
+    esac
+
+    if [[ $grub_write_failed -ne 0 ]]; then
+        log_error "GRUB 参数写入未全部成功，请检查 /etc/default/grub 后重试"
+        pause_function
+        return 1
+    fi
 
     echo -e "✓ GRUB 配置已更新 (已添加 module_blacklist=xe 以兼容 PVE 9.1)"
 
-    # 更新 GRUB
-    echo "更新 GRUB..."
-    update-grub || {
-        echo -e "更新 GRUB 失败"
-        pause_function
-        return 1
-    }
+    # 更新 GRUB：仅在参数确有变化时执行
+    grub_cmdline_after="$(grep '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub 2>/dev/null || true)"
+    if [[ "$grub_cmdline_before" == "$grub_cmdline_after" ]]; then
+        echo "GRUB 参数无变化，跳过 update-grub"
+    else
+        echo "更新 GRUB..."
+        update-grub || {
+            echo -e "更新 GRUB 失败"
+            pause_function
+            return 1
+        }
+    fi
 
     # 配置内核模块
     echo "配置内核模块..."
@@ -158,27 +471,8 @@ vfio_virqfd"
         echo -e "更新 initramfs 失败，但可以继续"
     }
 
-    # 下载并安装 i915-sriov-dkms 驱动
-    echo "下载 i915-sriov-dkms 驱动..."
-    echo "  提示: 请在浏览器访问 https://github.com/strongtz/i915-sriov-dkms/releases 选择匹配的版本"
-    echo "  一般建议选择最新的 release 版本以兼容最新的内核版本"
-    echo "  输入格式：例如：2025.11.10"
-    echo "  不输入回车的默认版本为 2025.11.10，可能不兼容老版本内核，故障表现在无法虚拟出 VFs" 
-
-    default_dkms_version="2025.11.10"
-    read -p "请输入要安装的 release 版本号 [默认: ${default_dkms_version}]: " dkms_version_input
-    dkms_version_input=$(echo "$dkms_version_input" | xargs)
-
-    if [ -z "$dkms_version_input" ]; then
-        dkms_version_input="$default_dkms_version"
-    fi
-
-    # release 标签可能以 v 打头，但 deb 文件名不包含 v
-    dkms_asset_version=$(echo "$dkms_version_input" | sed 's/^[vV]//')
-    dkms_tag="$dkms_version_input"
-
-    dkms_url="https://github.com/strongtz/i915-sriov-dkms/releases/download/${dkms_tag}/i915-sriov-dkms_${dkms_asset_version}_amd64.deb"
-    dkms_file="/tmp/i915-sriov-dkms_${dkms_asset_version}_amd64.deb"
+    # 下载并安装 i915-sriov-dkms 驱动（版本已在上方选定）
+    echo "下载 i915-sriov-dkms 驱动 (${dkms_tag})..."
 
     # 检查是否已下载
     if [ -f "$dkms_file" ]; then
@@ -255,7 +549,14 @@ vfio_virqfd"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo
     echo "配置摘要："
-    echo "  • 内核参数: intel_iommu=on iommu=pt i915.enable_guc=3 i915.max_vfs=7"
+    echo "  • 内核参数: intel_iommu=on iommu=pt i915.enable_guc=3 i915.max_vfs=7 module_blacklist=xe"
+    if [[ "$ccs0_action" == "add" ]]; then
+        echo "  • CCS0 兼容模式: 已启用 (i915.xelp_enable_ccs=1)"
+    elif [[ "$ccs0_action" == "remove" ]]; then
+        echo "  • CCS0 兼容模式: 已移除本工具此前写入的 i915.xelp_enable_ccs"
+    else
+        echo "  • CCS0 兼容模式: 未启用（保留上游默认行为）"
+    fi
     echo "  • VFIO 模块: 已加载"
     echo "  • i915-sriov 驱动: 已安装"
     echo "  • 虚拟核显数量: $vfs_num 个"
@@ -270,6 +571,18 @@ vfio_virqfd"
     echo -e "  • 只能直通虚拟核显 (00:02.1 ~ 00:02.$vfs_num)"
     echo -e "  • 虚拟机需要勾选 ROM-Bar 和 PCIE 选项"
     echo
+    if [[ "$boot_mode" != "grub" ]]; then
+        echo "$UI_BORDER"
+        echo -e "  ${YELLOW}引导方式提醒:${NC} 本机引导方式为 ${boot_mode}，上方 GRUB 参数${RED}不会生效${NC}。"
+        echo "  请将以下参数写入 /etc/kernel/cmdline（同一行）后执行 proxmox-boot-tool refresh："
+        echo -n "    intel_iommu=on iommu=pt i915.enable_guc=3 i915.max_vfs=7 module_blacklist=xe"
+        if [[ "$ccs0_action" == "add" ]]; then
+            echo -n " i915.xelp_enable_ccs=1"
+        fi
+        echo
+        echo "$UI_BORDER"
+        echo
+    fi
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     if confirm_action "是否现在重启系统"; then

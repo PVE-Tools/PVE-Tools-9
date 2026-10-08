@@ -81,6 +81,8 @@ igpu_gvtg_setup() {
     grub_remove_param "i915.enable_guc"
     grub_remove_param "i915.max_vfs"
     grub_remove_param "module_blacklist"
+    # 移除 SR-IOV 专用的 CCS0 兼容参数（仅移除本工具写入的，保留用户自行添加的同名参数）
+    sriov_remove_ccs_param_if_owned
 
     # 添加 GVT-g 参数（幂等操作，不会重复添加）
     grub_add_param "intel_iommu=on"
