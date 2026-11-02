@@ -38,7 +38,6 @@
 - 检查 Nginx / Caddy 等反向代理、监控探针与部署脚本中的旧域名
 - 更新安装命令：`bash <(curl -sSL https://pve.ciriu.com/PVE-Tools.sh)`
 - 邮箱同步变更为 `Support@ciriu.com` / `contact@ciriu.com`
-- 旧域名续费众筹：<https://ifdian.net/project/5f92101ad68311f1824c5254001e7c00>
 
 旧域名保留与续费说明见 [域名迁移公告](https://pve.ciriu.com/about/domain-migration)。
 
