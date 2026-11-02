@@ -31,6 +31,7 @@ PVE_TOOLS_ENTRY_LAST_ERROR=""
 
 # 旧域名已废弃：下载到的升级脚本若仍引用旧域名，说明发布源未同步或命中了旧缓存，
 # 此时中止启动。变量用字符串拼接，避免本脚本自身命中旧域名扫描。
+# shellcheck disable=SC2140  # 拼接写法刻意保留，拼接结果即旧域名字面量
 PVE_TOOLS_LEGACY_DOMAIN="u3u"."icu"
 PVE_TOOLS_LEGACY_DOMAIN_PATTERN="u3u[.]icu"
 PVE_TOOLS_OFFICIAL_BASE_URL="https://pve.ciriu.com"
