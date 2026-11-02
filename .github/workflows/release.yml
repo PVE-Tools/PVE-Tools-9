@@ -97,7 +97,7 @@ jobs:
 
             **Cloudflare 短域名（推荐）**
             ```bash
-            bash <(curl -sSL https://pve.u3u.icu/PVE-Tools.sh)
+            bash <(curl -sSL https://pve.ciriu.com/PVE-Tools.sh)
             ```
 
             **中国大陆网络**

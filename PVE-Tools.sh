@@ -29,6 +29,12 @@ PVE_TOOLS_DOWNLOAD_RETRIES="${PVE_TOOLS_DOWNLOAD_RETRIES:-2}"
 PVE_TOOLS_RELEASE_PAGE_URL="$PVE_TOOLS_RELEASE_BASE_URL/latest"
 PVE_TOOLS_ENTRY_LAST_ERROR=""
 
+# 旧域名已废弃：下载到的升级脚本若仍引用旧域名，说明发布源未同步或命中了旧缓存，
+# 此时中止启动。变量用字符串拼接，避免本脚本自身命中旧域名扫描。
+PVE_TOOLS_LEGACY_DOMAIN="u3u"."icu"
+PVE_TOOLS_LEGACY_DOMAIN_PATTERN="u3u[.]icu"
+PVE_TOOLS_OFFICIAL_BASE_URL="https://pve.ciriu.com"
+
 # 安装器配置：入口脚本不加载 lib/config.sh，以下默认值须与 lib/config.sh 中
 # PVE_TOOLS_BIN_PATH / PVE_TOOLS_OPT_DIR / PVE_TOOLS_ALIAS_MARKER / PVE_TOOLS_INSTALL_META_FILE
 # 保持一致。环境变量覆盖仅用于测试与自定义安装位置。
@@ -184,6 +190,12 @@ pve_tools_entry_download_with_wget() {
     return "$status"
 }
 
+pve_tools_entry_script_has_legacy_domain() {
+    local script_path="$1"
+
+    grep -q "$PVE_TOOLS_LEGACY_DOMAIN_PATTERN" "$script_path" 2>/dev/null
+}
+
 pve_tools_entry_validate_script() {
     local script_path="$1"
 
@@ -197,6 +209,10 @@ pve_tools_entry_validate_script() {
     fi
     if ! grep -q '^CURRENT_VERSION=' "$script_path"; then
         PVE_TOOLS_ENTRY_LAST_ERROR="下载内容不是 PVE-Tools 主程序完整版"
+        return 1
+    fi
+    if pve_tools_entry_script_has_legacy_domain "$script_path"; then
+        PVE_TOOLS_ENTRY_LAST_ERROR="下载的主程序仍引用已废弃的旧域名 ${PVE_TOOLS_LEGACY_DOMAIN}，可能来自旧缓存或尚未同步的发布源；已中止启动"
         return 1
     fi
 
@@ -286,6 +302,10 @@ pve_tools_entry_print_release_help() {
 错误：PVE-Tools 主程序单文件完整版下载失败，程序尚未启动。
 以上 CNB 国内源和 GitHub Release 源均未能完成下载。
 
+新版官方域名：$PVE_TOOLS_OFFICIAL_BASE_URL
+旧域名 ${PVE_TOOLS_LEGACY_DOMAIN} 已废弃并即将释放，释放后可能被他人抢注，
+请勿再从旧域名获取安装命令或脚本。
+
 请先检查主机网络，然后任选以下地址手动下载（请勿下载 Source code 的 zip 或 tar.gz 压缩包）：
 CNB 国内源：
 $PVE_TOOLS_CNB_DIST_URL
@@ -342,7 +362,7 @@ pve_tools_entry_require_root() {
     local action="$1"
     local self="${BASH_SOURCE[0]:-}"
     local entry_flag=""
-    local rerun_hint="sudo bash <(curl -sSL https://pve.u3u.icu/PVE-Tools.sh)"
+    local rerun_hint="sudo bash <(curl -sSL https://pve.ciriu.com/PVE-Tools.sh)"
 
     # 把入口模式翻译为解析器认可的 flag；run 对应默认行为（不带参数）
     case "$PVE_TOOLS_ENTRY_MODE" in

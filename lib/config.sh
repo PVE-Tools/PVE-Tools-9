@@ -16,6 +16,11 @@ PVE_TOOLS_CNB_RAW_BASE="https://cnb.cool/PVE-Tools/PVE-Tools-Pro/-/git/raw"
 VERSION_FILE_URL_CNB="${PVE_TOOLS_CNB_RAW_BASE}/main/VERSION"
 UPDATE_FILE_URL_CNB="${PVE_TOOLS_CNB_RAW_BASE}/main/UPDATE"
 PVE_TOOLS_SCRIPT_URL_CNB="${PVE_TOOLS_CNB_RAW_BASE}/dist/PVE-Tools.sh"
+# 旧域名已废弃：启动自检与升级脚本校验使用。
+# 变量用字符串拼接，避免 dist 自身命中旧域名扫描。
+PVE_TOOLS_LEGACY_DOMAIN="u3u"."icu"
+PVE_TOOLS_LEGACY_DOMAIN_PATTERN="u3u[.]icu"
+PVE_TOOLS_OFFICIAL_BASE_URL="https://pve.ciriu.com"
 PVE_VERSION_DETECTED=""
 PVE_MAJOR_VERSION=""
 RISK_ACK_BYPASS=false

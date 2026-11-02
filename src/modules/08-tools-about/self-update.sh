@@ -84,7 +84,7 @@ check_update() {
         
         echo -e "----------------------------------------------"
         echo -e "${CYAN}官方文档与最新脚本：${NC}"
-        echo -e "🔗 https://pve.u3u.icu (推荐)"
+        echo -e "🔗 ${PVE_TOOLS_OFFICIAL_BASE_URL} (推荐)"
         echo -e "🔗 https://github.com/PVE-Tools/PVE-Tools-9"
         echo -e "${UI_FOOTER}"
         echo -e "按 ${GREEN}回车键${NC} 进入主菜单..."
@@ -206,6 +206,15 @@ pve_tools_local_update() {
         rm -f "$tmp_script"
         cp -a "$backup_path" "$resolved_script" >/dev/null 2>&1 || true
         display_error "下载的新脚本校验失败，已自动回滚" "请稍后重试或手动检查下载源。"
+        return 1
+    fi
+
+    # 旧域名已废弃：升级源若仍下发引用旧域名的脚本，说明尚未同步或命中了旧缓存，
+    # 中止替换，避免把本地脚本换成会继续引导用户访问已释放域名的版本。
+    if pve_tools_script_has_legacy_domain "$tmp_script"; then
+        rm -f "$tmp_script"
+        display_error "下载的升级脚本仍引用已废弃的旧域名" \
+            "检测到 ${PVE_TOOLS_LEGACY_DOMAIN}。升级源可能尚未同步或命中了旧缓存，已保持本地脚本不变。请稍后重试，或从 ${PVE_TOOLS_OFFICIAL_BASE_URL} 重新获取。"
         return 1
     fi
 

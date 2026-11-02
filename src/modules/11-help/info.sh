@@ -40,9 +40,9 @@ help_show_paid_consult() {
     echo "    QQ:       1520942621"
     echo "    微信:     kilomaple2024"
     echo "    Telegram: https://t.me/pvetools_bot"
-    echo "    邮件:     contact@u3u.icu"
+    echo "    邮件:     contact@ciriu.com"
     echo
     echo "  想赞助作者：去官网支持一下，或直接加联系方式给作者转钱，感谢投喂！"
-    echo "    官网支持页: ${CYAN}https://pve.u3u.icu/support${NC}"
+    echo "    官网支持页: ${CYAN}https://pve.ciriu.com/support${NC}"
     echo "${UI_DIVIDER}"
 }

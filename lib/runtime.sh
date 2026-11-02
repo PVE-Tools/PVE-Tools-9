@@ -39,6 +39,31 @@ check_debug_mode() {
     DEBUG_MODE=false
 }
 
+pve_tools_script_has_legacy_domain() {
+    local script_path="$1"
+
+    [[ -f "$script_path" ]] || return 1
+    grep -q "$PVE_TOOLS_LEGACY_DOMAIN_PATTERN" "$script_path" 2>/dev/null
+}
+
+# 旧域名已废弃并即将释放：当前运行脚本若仍引用旧域名，说明来源可疑或版本过旧，
+# 直接中止，避免用户继续按旧域名上的文档/命令操作。
+check_legacy_domain() {
+    local current_script="${0:-}"
+
+    pve_tools_script_has_legacy_domain "$current_script" || return 0
+
+    clear
+    show_menu_header "旧域名已废弃"
+    echo -e "${RED}警告：当前运行的脚本仍引用已废弃的旧域名 ${PVE_TOOLS_LEGACY_DOMAIN}。${NC}"
+    echo -e "${RED}旧域名即将释放，释放后可能被他人抢注，并用于仿冒站点、钓鱼命令或恶意脚本。${NC}"
+    echo -e "${YELLOW}请立即停止使用此副本，并从新域名重新获取：${NC}"
+    echo "  ${PVE_TOOLS_OFFICIAL_BASE_URL}"
+    echo -e "${YELLOW}如已安装 pvetools，请重新执行安装：${NC}"
+    echo "  bash <(curl -sSL ${PVE_TOOLS_OFFICIAL_BASE_URL}/PVE-Tools.sh) --install"
+    exit 1
+}
+
 # 检查 PVE 版本
 check_pve_version() {
     # 如果在调试模式下，跳过 PVE 版本检测
@@ -171,7 +196,7 @@ EOF
                 exit 0
                 ;;
             --install)
-                log_info "当前已是本地安装版本；重新安装请在远程安装命令 bash <(curl -sSL https://pve.u3u.icu/PVE-Tools.sh) 后追加 --install 参数。"
+                log_info "当前已是本地安装版本；重新安装请在远程安装命令 bash <(curl -sSL https://pve.ciriu.com/PVE-Tools.sh) 后追加 --install 参数。"
                 ;;
             --uninstall)
                 check_root
@@ -189,6 +214,7 @@ main() {
 
     pve_tools_dispatch_entry_flags "$@"
     check_root
+    check_legacy_domain
     ensure_legal_acceptance
     check_debug_mode "$@"
     check_pve_version
