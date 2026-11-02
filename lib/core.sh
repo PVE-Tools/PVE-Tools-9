@@ -135,7 +135,7 @@ vm_show_data_risk_banner() {
     echo -e "${RED}本软件会执行您要求它做的事情，不会替您判断对错。${NC}"
     echo -e "${RED}您已被告知风险，请确保备份就绪、窗口明确、命令理解到位。${NC}"
     echo -e "${RED}如果心存疑虑，请停下来——数据无价。${NC}"
-    echo -e "${RED}恢复参考: https://pve.u3u.icu/advanced/data-recovery-after-mistake${NC}"
+    echo -e "${RED}恢复参考: https://pve.ciriu.com/advanced/data-recovery-after-mistake${NC}"
     echo -e "${RED}${UI_DIVIDER}${NC}"
 }
 
@@ -153,8 +153,8 @@ ensure_legal_acceptance() {
     clear
     show_menu_header "许可与服务条款"
     echo -e "继续使用本脚本即表示您同意以下条款："
-    echo -e "  ${CYAN}ULA${NC}（最终用户许可与使用协议）: https://pve.u3u.icu/ula"
-    echo -e "  ${CYAN}TOS${NC}（服务条款）: https://pve.u3u.icu/tos"
+    echo -e "  ${CYAN}ULA${NC}（最终用户许可与使用协议）: https://pve.ciriu.com/ula"
+    echo -e "  ${CYAN}TOS${NC}（服务条款）: https://pve.ciriu.com/tos"
     echo
     echo -e "${RED}本软件会做您明确告诉它要做的事情，无论那件事情多么荒谬或具有破坏性。${NC}"
     echo -e "${RED}您已被告知所有风险，并已独立决定使用本软件。${NC}"

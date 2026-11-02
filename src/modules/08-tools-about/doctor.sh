@@ -350,7 +350,7 @@ pve_tools_doctor_fix() {
     echo -e "请执行 ${CYAN}hash -r${NC} 或重新打开终端，使命令解析立即生效。"
     if [[ "$(pve_tools_doctor_classify_file "$PVE_TOOLS_BIN_PATH")" != "full" ]]; then
         echo -e "当前系统命令不是完整版，建议重新执行官方安装命令：" >&2
-        echo -e "  ${CYAN}bash <(curl -sSL https://pve.u3u.icu/PVE-Tools.sh)${NC}" >&2
+        echo -e "  ${CYAN}bash <(curl -sSL https://pve.ciriu.com/PVE-Tools.sh)${NC}" >&2
     fi
     if [[ ${#PVE_TOOLS_DOCTOR_FULL_COPIES[@]} -gt 0 ]]; then
         echo -e "提示：以下完整版副本未自动删除，确认不再需要后可手动清理：${PVE_TOOLS_DOCTOR_FULL_COPIES[*]}" >&2

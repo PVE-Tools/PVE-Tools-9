@@ -12,7 +12,7 @@
 2. **加聊天社区咨询** — Telegram 群 `https://t.me/pvetools233`，与 QQ 水群相互独立
 3. **加作者付费咨询** — 一对一技术支持 / 紧急情况 / 深度排查 / 合作洽谈
 
-付费咨询说明：项目免费开源，但作者**一般不提供免费的技术支持和免费解答方案**；紧急情况或谈合作欢迎直接联系作者（QQ `1520942621` / 微信 `kilomaple2024` / Telegram `https://t.me/pvetools_bot` / 邮件 `contact@u3u.icu`）。觉得工具好用想赞助作者，可前往官网支持页 `https://pve.u3u.icu/support` 或直接联系作者转账。
+付费咨询说明：项目免费开源，但作者**一般不提供免费的技术支持和免费解答方案**；紧急情况或谈合作欢迎直接联系作者（QQ `1520942621` / 微信 `kilomaple2024` / Telegram `https://t.me/pvetools_bot` / 邮件 `contact@ciriu.com`）。觉得工具好用想赞助作者，可前往官网支持页 `https://pve.ciriu.com/support` 或直接联系作者转账。
 
 ### 新增：硬件直通一键配置 (IOMMU) 可选增强参数
 

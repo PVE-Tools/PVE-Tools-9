@@ -178,7 +178,7 @@ sriov_remove_ccs_param_if_owned() {
 
 igpu_sriov_setup() {
     echo -e "${H2}开始配置 Intel 11-15代 SR-IOV 核显虚拟化${NC}"
-    echo -e "详细原理与教程： ${CYAN}https://pve.u3u.icu/advanced/gpu-virtualization${NC}"
+    echo -e "详细原理与教程： ${CYAN}https://pve.ciriu.com/tutorial/gpu-virtualization${NC}"
     echo -e "如果配置失败，请访问文档站下方留言反馈。"
     echo
 

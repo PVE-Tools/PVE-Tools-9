@@ -84,7 +84,7 @@ check_update() {
         
         echo -e "----------------------------------------------"
         echo -e "${CYAN}官方文档与最新脚本：${NC}"
-        echo -e "🔗 https://pve.u3u.icu (推荐)"
+        echo -e "🔗 ${PVE_TOOLS_OFFICIAL_BASE_URL} (推荐)"
         echo -e "🔗 https://github.com/PVE-Tools/PVE-Tools-9"
         echo -e "${UI_FOOTER}"
         echo -e "按 ${GREEN}回车键${NC} 进入主菜单..."
@@ -98,6 +98,7 @@ pve_tools_local_update() {
     local current_script="$0"
     local resolved_script backup_dir backup_path tmp_script update_urls prefer_cnb version_url update_url script_url version_fb_url update_fb_url script_fb_url version_source_url tmp_swap
     local remote_content remote_version detailed_changelog downloaded_version
+    local candidate_url script_ok script_downloaded script_rejected_legacy
 
     if [[ -z "$current_script" || ! -f "$current_script" ]]; then
         display_error "无法定位当前脚本文件" "请使用本地文件方式运行脚本后再执行更新。"
@@ -193,19 +194,47 @@ pve_tools_local_update() {
     fi
     log_success "当前脚本已备份: $backup_path"
 
-    if ! pve_tools_download_url "$script_url" 30 > "$tmp_script"; then
-        log_warn "首选脚本下载失败，尝试备用源: $script_fb_url"
-        if ! pve_tools_download_url "$script_fb_url" 30 > "$tmp_script"; then
-            rm -f "$tmp_script"
-            display_error "下载新脚本失败" "已保留原脚本，备份位于 $backup_path。"
-            return 1
+    # 每个来源下载后立即做完整校验（完整性、语法、旧域名）：首选脚本被拒绝时丢弃
+    # 临时文件并改试备用源，两个来源都不可用才拒绝更新；本地脚本始终保持原样。
+    script_ok=0
+    script_downloaded=0
+    script_rejected_legacy=0
+    for candidate_url in "$script_url" "$script_fb_url"; do
+        if [[ -z "$candidate_url" ]]; then
+            continue
         fi
-    fi
+        if ! pve_tools_download_url "$candidate_url" 30 > "$tmp_script"; then
+            log_warn "脚本下载失败，尝试下一个来源: $candidate_url"
+            continue
+        fi
+        script_downloaded=1
+        if ! grep -q '^CURRENT_VERSION=' "$tmp_script" || ! bash -n "$tmp_script"; then
+            log_warn "脚本校验失败，尝试下一个来源: $candidate_url"
+            rm -f "$tmp_script"
+            continue
+        fi
+        # 旧域名已废弃：升级源若仍下发引用旧域名的脚本，说明尚未同步或命中了旧缓存，
+        # 跳过该来源，避免把本地脚本换成会继续引导用户访问已释放域名的版本。
+        if pve_tools_script_has_legacy_domain "$tmp_script"; then
+            log_warn "脚本仍引用已废弃的旧域名，尝试下一个来源: $candidate_url"
+            rm -f "$tmp_script"
+            script_rejected_legacy=1
+            continue
+        fi
+        script_ok=1
+        break
+    done
 
-    if ! grep -q '^CURRENT_VERSION=' "$tmp_script" || ! bash -n "$tmp_script"; then
+    if [[ "$script_ok" -ne 1 ]]; then
         rm -f "$tmp_script"
-        cp -a "$backup_path" "$resolved_script" >/dev/null 2>&1 || true
-        display_error "下载的新脚本校验失败，已自动回滚" "请稍后重试或手动检查下载源。"
+        if [[ "$script_rejected_legacy" -eq 1 ]]; then
+            display_error "下载的升级脚本仍引用已废弃的旧域名" \
+                "检测到 ${PVE_TOOLS_LEGACY_DOMAIN}。升级源可能尚未同步或命中了旧缓存，已保持本地脚本不变。请稍后重试，或从 ${PVE_TOOLS_OFFICIAL_BASE_URL} 重新获取。"
+        elif [[ "$script_downloaded" -eq 1 ]]; then
+            display_error "下载的新脚本校验失败" "已保持本地脚本不变，备份位于 $backup_path。请稍后重试或手动检查下载源。"
+        else
+            display_error "下载新脚本失败" "已保留原脚本，备份位于 $backup_path。"
+        fi
         return 1
     fi
 

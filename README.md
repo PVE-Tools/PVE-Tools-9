@@ -22,12 +22,31 @@
 
 它不替代 PVE 原生命令，而是围绕高频运维场景做了集中封装，把**易错**、**需要大量人工检查**的操作打包为菜单化流程，并提供更强的校验与更明确的高风险提示.
 
+## 域名迁移公告
+
+> [!WARNING]
+> **旧域名 `pve.u3u.icu` 已废弃，官方域名迁移至 <https://pve.ciriu.com>。**
+>
+> 旧域名即将停止续费并释放。**请自己仔细检查业务域名，因旧域名即将释放，释放后可能会被有心之人利用。**
+>
+> 任何仍指向旧域名的书签、快捷方式、`hosts` 记录、DNS 覆盖、反向代理、监控探针、自动化脚本或安装命令，都可能被他人利用。旧域名被抢注后，可能出现仿冒文档、钓鱼安装命令或恶意镜像。
+
+请立即完成以下操作：
+
+- 删除浏览器书签中的旧域名，改为收藏 <https://pve.ciriu.com>
+- 检查本机 `hosts`、路由器 / AdGuard Home / Pi-hole 自定义解析与代理规则
+- 检查 Nginx / Caddy 等反向代理、监控探针与部署脚本中的旧域名
+- 更新安装命令：`bash <(curl -sSL https://pve.ciriu.com/PVE-Tools.sh)`
+- 邮箱同步变更为 `Support@ciriu.com` / `contact@ciriu.com`
+
+旧域名保留与续费说明见 [域名迁移公告](https://pve.ciriu.com/about/domain-migration)。
+
 ## 文档
 
-| 文档 | [![使用指南](https://img.shields.io/badge/文档-使用指南-orange)](https://pve.u3u.icu/guide/) | [![功能特性](https://img.shields.io/badge/文档-功能特性-blue)](https://pve.u3u.icu/guide/features) | [![更新日志](https://img.shields.io/badge/文档-更新日志-informational)](https://pve.u3u.icu/changelog/) | [![常见问题](https://img.shields.io/badge/文档-FAQ-green)](https://pve.u3u.icu/guide/faq) |
+| 文档 | [![使用指南](https://img.shields.io/badge/文档-使用指南-orange)](https://pve.ciriu.com/guide/) | [![功能特性](https://img.shields.io/badge/文档-功能特性-blue)](https://pve.ciriu.com/guide/features) | [![更新日志](https://img.shields.io/badge/文档-更新日志-informational)](https://pve.ciriu.com/changelog/) | [![常见问题](https://img.shields.io/badge/文档-FAQ-green)](https://pve.ciriu.com/guide/faq) |
 |:-:|:-:|:-:|:-:|:-:|
 
-| 高级教程 | [![数据恢复](https://img.shields.io/badge/教程-数据恢复-red)](https://pve.u3u.icu/tutorial/data-recovery-after-mistake) | [![宿主机网络](https://img.shields.io/badge/教程-网络防火墙-yellow)](https://pve.u3u.icu/tutorial/host-network-firewall-ipv6) | [![VM 运维](https://img.shields.io/badge/教程-VM%20运维-9cf)](https://pve.u3u.icu/tutorial/vm-backup-migration-cloudinit) |
+| 高级教程 | [![数据恢复](https://img.shields.io/badge/教程-数据恢复-red)](https://pve.ciriu.com/tutorial/data-recovery-after-mistake) | [![宿主机网络](https://img.shields.io/badge/教程-网络防火墙-yellow)](https://pve.ciriu.com/tutorial/host-network-firewall-ipv6) | [![VM 运维](https://img.shields.io/badge/教程-VM%20运维-9cf)](https://pve.ciriu.com/tutorial/vm-backup-migration-cloudinit) |
 |:-:|:-:|:-:|:-:|
 ---
 
@@ -44,7 +63,7 @@
 在 PVE 终端粘贴执行（需要 Proxmox VE 9.0 以上并以 root 运行），启动器引导自动下载完整程序：
 
 ```bash
-bash <(curl -sSL https://pve.u3u.icu/PVE-Tools.sh)
+bash <(curl -sSL https://pve.ciriu.com/PVE-Tools.sh)
 ```
 - PS: 缺少 curl 时先执行 `apt update && apt install curl -y`.
 - **快速体验**：默认回车一次性启动，不在系统留文件.
@@ -112,11 +131,11 @@ chmod +x PVE-Tools.sh && bash PVE-Tools.sh
 
 如果这个项目帮你节省了时间、避开了误操作，或者单纯想支持后续维护与继续更新，可以通过以下渠道赞助：
 
-| 赞助渠道 | [![赞助页面](https://img.shields.io/badge/赞助-pve.u3u.icu%2Fsponsor-pink)](https://pve.u3u.icu/support/sponsor) | [![爱发电](https://img.shields.io/badge/爱发电-afdian.com-red)](https://afdian.com/a/cyrenenight) | [![微信](https://img.shields.io/badge/微信-赞赏码-brightgreen)](./images/WeChat.jpg) |
+| 赞助渠道 | [![赞助页面](https://img.shields.io/badge/赞助-pve.ciriu.com%2Fsponsor-pink)](https://pve.ciriu.com/support/sponsor) | [![爱发电](https://img.shields.io/badge/爱发电-afdian.com-red)](https://afdian.com/a/cyrenenight) | [![微信](https://img.shields.io/badge/微信-赞赏码-brightgreen)](./images/WeChat.jpg) |
 |:-:|:-:|:-:|:-:|
 
 - 赞助档位：基础支持 ¥5、进阶支持 ¥28.88（群专属头衔 + 新功能优先内测）、核心支持者 ¥50（ID 永久刻入赞助者名单），也支持自定义金额.
-- 赞助是对项目本身的支持，社群只提供基础交流；需要一对一远程协助、紧急救砖、直通 / 网络排查或完整代配，请查看[付费技术支持说明](https://pve.u3u.icu/support/pay)，这里购买的是时间与交付结果.
+- 赞助是对项目本身的支持，社群只提供基础交流；需要一对一远程协助、紧急救砖、直通 / 网络排查或完整代配，请查看[付费技术支持说明](https://pve.ciriu.com/support/pay)，这里购买的是时间与交付结果.
 
 ## 特别鸣谢
 
@@ -136,7 +155,7 @@ chmod +x PVE-Tools.sh && bash PVE-Tools.sh
 这是一个会真实调用 PVE 原生命令并修改宿主机 / VM 配置的运维工具。
 如果你在没有经过验证的备份、没有维护窗口、没有明确回滚方案的前提下执行高风险动作，可能导致管理面失联、业务中断、配置损坏或不可逆的数据损失。所有数据损失、恢复成本与第三方恢复费用均由实际操作人自行承担。
 
-完整用户协议（ULA）页面：https://pve.u3u.icu/legal/ula ，主要说明脚本的适用范围、风险边界、用户自担的操作责任，以及对网络中断、配置错误、数据损坏、业务不可用和衍生恢复成本的免责声明。
+完整用户协议（ULA）页面：https://pve.ciriu.com/legal/ula ，主要说明脚本的适用范围、风险边界、用户自担的操作责任，以及对网络中断、配置错误、数据损坏、业务不可用和衍生恢复成本的免责声明。
 
 ## 开源许可
 

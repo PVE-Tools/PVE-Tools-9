@@ -8,7 +8,7 @@ menu_optimization() {
 
 menu_optimization_render() {
     echo -e "  ${YELLOW}功能 1/2 请在外部 SSH 环境下使用！否则 PVE WebUI 重启会导致 Shell 断连、修改失效。${NC}"
-    echo -e "  ${YELLOW}SSH 连接教程: https://pve.u3u.icu/advanced/how-to-connect-ssh.html${NC}"
+    echo -e "  ${YELLOW}SSH 连接教程: https://pve.ciriu.com/tutorial/how-to-connect-ssh${NC}"
     echo "$UI_DIVIDER"
     show_menu_option "1" "删除订阅弹窗"
     show_menu_option "2" "${MAGENTA}一键优化 (换源+删弹窗+更新)${NC}"
