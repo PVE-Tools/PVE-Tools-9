@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Ciriu Networks
 
+# 按已选镜像重写 APT 源并禁用企业源；写入前沿用逐文件备份。
+# 企业源编辑失败时返回非零；此前的 Debian 源可能已改写，不承诺原子回滚。
 change_sources() {
     block_non_pve9_destructive "更换软件源" || return 1
     log_step "开始为您的 PVE 换上飞速源"
@@ -71,7 +73,10 @@ EOF
         backup_file "/etc/apt/sources.list.d/pve-enterprise.sources"
         # 注释整个 deb822 段，避免遗漏 Enabled 等字段形成缺少 Types 的残缺段。
         # 保留已有注释，重复执行不会叠加 #，也能处理旧版本留下的残缺配置。
-        sed -i '/^[[:space:]]*#/!s/^/#/' /etc/apt/sources.list.d/pve-enterprise.sources || return 1
+        if ! sed -i '/^[[:space:]]*#/!s/^/#/' /etc/apt/sources.list.d/pve-enterprise.sources; then
+            log_error "关闭企业源失败，部分软件源可能已改写；请检查 /var/backups/pve-tools/ 中的备份后恢复，勿继续更新。"
+            return 1
+        fi
     fi
     
     # 3. 更换 Ceph 源
