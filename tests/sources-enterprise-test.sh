@@ -157,8 +157,10 @@ grep -q '部分软件源可能已改写' "$TMP_DIR/error-log"
 echo 'PASS: edit failure returns nonzero without success log or source loss'
 
 : > "$TMP_DIR/success-log"
-if menu_sources_updates_dispatch 1; then
-    echo 'FAIL: source menu swallowed the enterprise edit failure' >&2
+dispatch_status=0
+menu_sources_updates_dispatch 1 || dispatch_status=$?
+if [[ "$dispatch_status" != "2" ]]; then
+    echo 'FAIL: source menu did not classify the enterprise edit as action failure' >&2
     exit 1
 fi
 [[ ! -s "$TMP_DIR/success-log" ]]
