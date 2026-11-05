@@ -29,6 +29,11 @@ jobs:
           bash -n dev.sh
           bash build.sh
           bash -n dist/PVE-Tools.sh
+
+      - name: Enterprise APT source regression tests
+        run: |
+          shellcheck -f gcc tests/sources-enterprise-test.sh
+          bash tests/sources-enterprise-test.sh
           
       - name: Shellcheck (built script, error level)
         run: |

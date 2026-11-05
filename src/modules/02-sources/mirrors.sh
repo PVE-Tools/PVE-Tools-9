@@ -69,11 +69,9 @@ EOF
     log_info "正在关闭企业源（我们用免费版就够啦）..."
     if [[ -f "/etc/apt/sources.list.d/pve-enterprise.sources" ]]; then
         backup_file "/etc/apt/sources.list.d/pve-enterprise.sources"
-        sed -i 's/^Types:/#Types:/g' /etc/apt/sources.list.d/pve-enterprise.sources
-        sed -i 's/^URIs:/#URIs:/g' /etc/apt/sources.list.d/pve-enterprise.sources
-        sed -i 's/^Suites:/#Suites:/g' /etc/apt/sources.list.d/pve-enterprise.sources
-        sed -i 's/^Components:/#Components:/g' /etc/apt/sources.list.d/pve-enterprise.sources
-        sed -i 's/^Signed-By:/#Signed-By:/g' /etc/apt/sources.list.d/pve-enterprise.sources
+        # 注释整个 deb822 段，避免遗漏 Enabled 等字段形成缺少 Types 的残缺段。
+        # 保留已有注释，重复执行不会叠加 #，也能处理旧版本留下的残缺配置。
+        sed -i '/^[[:space:]]*#/!s/^/#/' /etc/apt/sources.list.d/pve-enterprise.sources || return 1
     fi
     
     # 3. 更换 Ceph 源
