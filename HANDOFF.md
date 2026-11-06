@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- Copyright (C) 2026 Ciriu Networks -->
+
 # 维护记录
 
 ## PR #113：企业源禁用与取消操作

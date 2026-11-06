@@ -185,10 +185,25 @@ foo_menu_dispatch() {      # case 处理选项；未识别 return 1；末尾必�
 | 构建一致性 | 源码与 dist 的函数集合双向 diff | CI 强制（PR 与发布前均执行） |
 | 版本一致性 | `CURRENT_VERSION` == `VERSION` == 发布 tag；UPDATE 首行含当前版本 | CI 强制 |
 | 安全扫描 | dist 中禁 `eval`、未引号变量 `rm -rf`、`source` 语句 | CI 强制 |
-| 回归测试 | `bash tests/*.sh`（纯逻辑 + mock，本地手动执行） | 未接入 CI；覆盖内核清理与 SR-IOV CCS0 决策路径 |
+| 回归测试 | 下方循环逐一运行 `tests/*.sh`（纯逻辑 + mock） | 软件源与菜单测试接入 PR CI；内核清理与 SR-IOV CCS0 可本地执行 |
 | 功能测试 | 手动在 PVE 9.x 环境验证 | 无自动化 E2E 测试 |
 
-**注意**: 本项目没有端到端自动化测试，功能验证仍依赖人工在真实或模拟的 PVE 9.x 环境中进行；核心易错逻辑已抽为纯函数并由 `tests/` 下的本地回归脚本覆盖。建议每次 PR 同时验证 `bash dev.sh`、`bash tests/*.sh` 与 `bash build.sh && bash -n dist/PVE-Tools.sh`。
+**注意**: 本项目没有端到端自动化测试，功能验证仍依赖人工在真实或模拟的 PVE 9.x 环境中进行；核心易错逻辑已抽为纯函数并由 `tests/` 下的本地回归脚本覆盖。建议每次 PR 验证 `bash build.sh && bash -n dist/PVE-Tools.sh`，并逐一执行全部回归脚本：
+
+```bash
+(
+    test_status=0
+    for test_script in tests/*.sh; do
+        bash "$test_script" || {
+            printf 'FAIL: %s\n' "$test_script" >&2
+            test_status=1
+        }
+    done
+    exit "$test_status"
+)
+```
+
+循环会列出失败脚本并继续执行其余测试，最终以非零状态报告失败。运行 `bash dev.sh` 会进入真实运维菜单，仅在准备好备份和回滚方案的测试主机上手动验证。
 
 ## 编码规范
 
