@@ -29,6 +29,13 @@ jobs:
           bash -n dev.sh
           bash build.sh
           bash -n dist/PVE-Tools.sh
+
+      - name: APT source and menu regression tests
+        run: |
+          shellcheck -f gcc tests/sources-enterprise-test.sh tests/menu-action-status-test.sh tests/sources-cancellation-test.sh
+          bash tests/sources-enterprise-test.sh
+          bash tests/menu-action-status-test.sh
+          bash tests/sources-cancellation-test.sh
           
       - name: Shellcheck (built script, error level)
         run: |

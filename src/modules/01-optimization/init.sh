@@ -21,7 +21,12 @@ menu_optimization_render() {
 menu_optimization_dispatch() {
     case "$1" in
         1) remove_subscription_popup ;;
-        2) quick_setup ;;
+        2)
+            local status=0
+            quick_setup || status=$?
+            [[ "$status" -eq 2 ]] && return 3
+            [[ "$status" -eq 0 ]] || return 2
+            ;;
         3) temp_monitoring_menu ;;
         4) cpupower ;;
         5) pve_mail_notification_setup ;;

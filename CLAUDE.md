@@ -146,6 +146,8 @@ foo_menu_dispatch() {      # case 处理选项；未识别 return 1；末尾必�
 
 框架职责：清屏、标题、统一"0 返回"项（文案按嵌套深度自动生成：一级"返回主菜单"/更深"返回上级菜单"）、带色读取提示、EOF 与 Ctrl+C 守卫（视为返回上级，杜绝死循环）、无效输入报错、pause 节奏（动作后暂停一次；进出子菜单与返回不暂停，由 `MENU_SKIP_PAUSE` 传递）。
 
+分发器显式返回 `2` 表示操作失败，返回 `3` 表示取消。框架只对操作失败报错，随后成功、取消、选 `0` 或 EOF 都不会清除已有失败；未发生失败时菜单正常返回 `0`。源操作 `select_mirror`、`change_sources`、`quick_setup` 用 `2` 表示取消，分发器应将其映射为 `3`，并阻止配置写入及后续优化步骤。
+
 输入原语：`prompt_value <变量名> <提示语> [默认值] [校验函数]`（默认值统一 `[默认值]` 尾括号标注；无默认时空回车=取消 return 2）、`prompt_yes_no <提示语> [默认]`、`prompt_pick_from_list <变量名> <提示> <数组名>`（0=返回，return 2，与 `vm_select_*` 选择器约定一致）、`show_report`（长输出接分页器）。
 
 ### 确认体系（两档）
@@ -183,10 +185,25 @@ foo_menu_dispatch() {      # case 处理选项；未识别 return 1；末尾必�
 | 构建一致性 | 源码与 dist 的函数集合双向 diff | CI 强制（PR 与发布前均执行） |
 | 版本一致性 | `CURRENT_VERSION` == `VERSION` == 发布 tag；UPDATE 首行含当前版本 | CI 强制 |
 | 安全扫描 | dist 中禁 `eval`、未引号变量 `rm -rf`、`source` 语句 | CI 强制 |
-| 回归测试 | `bash tests/*.sh`（纯逻辑 + mock，本地手动执行） | 未接入 CI；覆盖内核清理与 SR-IOV CCS0 决策路径 |
+| 回归测试 | 下方循环逐一运行 `tests/*.sh`（纯逻辑 + mock） | 软件源与菜单测试接入 PR CI；内核清理与 SR-IOV CCS0 可本地执行 |
 | 功能测试 | 手动在 PVE 9.x 环境验证 | 无自动化 E2E 测试 |
 
-**注意**: 本项目没有端到端自动化测试，功能验证仍依赖人工在真实或模拟的 PVE 9.x 环境中进行；核心易错逻辑已抽为纯函数并由 `tests/` 下的本地回归脚本覆盖。建议每次 PR 同时验证 `bash dev.sh`、`bash tests/*.sh` 与 `bash build.sh && bash -n dist/PVE-Tools.sh`。
+**注意**: 本项目没有端到端自动化测试，功能验证仍依赖人工在真实或模拟的 PVE 9.x 环境中进行；核心易错逻辑已抽为纯函数并由 `tests/` 下的本地回归脚本覆盖。建议每次 PR 验证 `bash build.sh && bash -n dist/PVE-Tools.sh`，并逐一执行全部回归脚本：
+
+```bash
+(
+    test_status=0
+    for test_script in tests/*.sh; do
+        bash "$test_script" || {
+            printf 'FAIL: %s\n' "$test_script" >&2
+            test_status=1
+        }
+    done
+    exit "$test_status"
+)
+```
+
+循环会列出失败脚本并继续执行其余测试，最终以非零状态报告失败。运行 `bash dev.sh` 会进入真实运维菜单，仅在准备好备份和回滚方案的测试主机上手动验证。
 
 ## 编码规范
 
