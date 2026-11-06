@@ -12,10 +12,15 @@ menu_sources_updates_render() {
     show_menu_option "3" "${YELLOW}PVE 8.x 升级到 PVE 9.x${NC}"
 }
 
-# 分发软件源菜单；换源失败映射为框架的操作失败状态2，未知选项仍返回1。
+# 分发软件源菜单；换源失败映射为2，取消映射为3，未知选项仍返回1。
 menu_sources_updates_dispatch() {
     case "$1" in
-        1) change_sources || return 2 ;;
+        1)
+            local status=0
+            change_sources || status=$?
+            [[ "$status" -eq 2 ]] && return 3
+            [[ "$status" -eq 0 ]] || return 2
+            ;;
         2) update_system ;;
         3) pve8_to_pve9_upgrade ;;
         *) return 1 ;;

@@ -12,6 +12,7 @@
 #   - 分发函数：case "$1" 处理选项；无法识别的输入 return 1（由框架统一报错），
 #     其余分支默认 return 0；需要向框架报告操作失败时显式 return 2。
 #     2 不视为输入错误；菜单继续可用，退出时保留本轮菜单发生过操作失败的状态。
+#     用户取消操作时 return 3；不报错，也不清除之前的操作失败状态。
 #   - 选 0 返回、或从子菜单退回父菜单时，不再触发"按任意键继续"。
 
 # 当前菜单嵌套深度：主循环为 0，模块顶级菜单为 1，再往下递增
@@ -71,7 +72,7 @@ run_menu() {
         dispatch_status=0
         "$dispatch_fn" "$choice" || dispatch_status=$?
         case "$dispatch_status" in
-            0) ;;
+            0|3) ;;
             2)
                 action_status=2
                 log_error "操作执行失败，请查看上方错误信息。"

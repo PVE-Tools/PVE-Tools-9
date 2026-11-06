@@ -30,6 +30,8 @@ CI (`pr-validation.yml`) additionally asserts: source-vs-dist function-set consi
 
 All menus go through the framework in `lib/menu.sh`: `run_menu <title> <render_fn> <dispatch_fn> <range>` — never hand-write `while true` menu loops. Render functions print options only (`show_menu_option`); dispatch functions `case "$1"`, `return 1` for unknown input, `return 0` at the end. `0` is always "back" and is appended by the framework. For input use `prompt_value` (default-value annotation, empty = cancel), `prompt_yes_no`, `prompt_pick_from_list` (returns 2 on cancel — same convention as the `vm_select_*` pickers).
 
+Dispatchers explicitly return `2` for action failure and `3` for cancellation. `run_menu` reports only action failure and retains it through later success, cancellation, `0` or EOF; otherwise menu exit returns `0`. Source actions (`select_mirror`, `change_sources`, `quick_setup`) use `2` for cancellation, so their dispatchers must translate that to `3`. Cancellation must stop configuration writes and later optimization steps.
+
 Confirmations are two-tier: `confirm_action` (light, type `yes`) for reversible config writes; `confirm_high_risk_action` (heavy, type a specific confirm word) for anything touching GRUB/VFIO, apt sources, fstab, LVM, qm disk slots, firewall, SSH, or cron.
 
 ## Commit & Pull Request Guidelines

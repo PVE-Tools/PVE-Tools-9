@@ -3,13 +3,14 @@
 # Copyright (C) 2026 Ciriu Networks
 
 # 按已选镜像重写 APT 源并禁用企业源；写入前沿用逐文件备份。
+# 返回：0=完成；1=失败；2=用户取消，未写入配置。
 # 企业源编辑失败时返回非零；此前的 Debian 源可能已改写，不承诺原子回滚。
 change_sources() {
     block_non_pve9_destructive "更换软件源" || return 1
     log_step "开始为您的 PVE 换上飞速源"
 
     if ! mirror_selection_complete; then
-        select_mirror || return 1
+        select_mirror || return $?
     fi
 
     local debian_mirror="${MIRROR_DEBIAN_URIS[$MIRROR_SELECTED_DEBIAN]}"
@@ -32,7 +33,7 @@ change_sources() {
     log_info "  CT 模板:   $ct_mirror"
 
     if ! confirm_action "按以上配置重写 APT 源文件（debian/ceph/pve-no-subscription 等）"; then
-        return 0
+        return 2
     fi
 
     # 1. 更换 Debian 软件源 (DEB822 格式)
@@ -72,8 +73,8 @@ EOF
     if [[ -f "/etc/apt/sources.list.d/pve-enterprise.sources" ]]; then
         backup_file "/etc/apt/sources.list.d/pve-enterprise.sources"
         # 注释整个 deb822 段，避免遗漏 Enabled 等字段形成缺少 Types 的残缺段。
-        # 保留已有注释，重复执行不会叠加 #，也能处理旧版本留下的残缺配置。
-        if ! sed -i '/^[[:space:]]*#/!s/^/#/' /etc/apt/sources.list.d/pve-enterprise.sources; then
+        # 仅保留首列 # 注释；缩进的 # 行也加前缀，保留原文并保证重复执行幂等。
+        if ! sed -i '/^#/!s/^/#/' /etc/apt/sources.list.d/pve-enterprise.sources; then
             log_error "关闭企业源失败，部分软件源可能已改写；请检查 /var/backups/pve-tools/ 中的备份后恢复，勿继续更新。"
             return 1
         fi

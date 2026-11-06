@@ -36,6 +36,10 @@ sed -e "s|/etc/apt/sources.list.d|$TMP_DIR/sources|g" \
 source "$TMP_DIR/mirrors.sh"
 # shellcheck source=/dev/null
 source "$REPO_ROOT/src/modules/02-sources/init.sh"
+# shellcheck source=/dev/null
+source "$REPO_ROOT/src/modules/01-optimization/tune.sh"
+# shellcheck source=/dev/null
+source "$REPO_ROOT/src/modules/01-optimization/init.sh"
 
 block_non_pve9_destructive() { return 0; }
 mirror_selection_complete() { return 0; }
@@ -45,6 +49,8 @@ log_info() { :; }
 log_success() { printf '%s\n' "$*" >> "$TMP_DIR/success-log"; }
 log_error() { printf '%s\n' "$*" >> "$TMP_DIR/error-log"; }
 backup_file() { cp -- "$1" "$TMP_DIR/backups/$(basename "$1")"; }
+remove_subscription_popup() { printf 'popup\n' >> "$TMP_DIR/optimization-calls"; }
+update_system() { printf 'update\n' >> "$TMP_DIR/optimization-calls"; }
 
 MIRROR_SELECTED_DEBIAN=0
 MIRROR_SELECTED_SECURITY=0
@@ -89,13 +95,13 @@ run_case() {
     change_sources
     cmp -- "$TMP_DIR/original" "$TMP_DIR/backups/pve-enterprise.sources"
     assert_apt_sources
-    if grep -qEv '^[[:space:]]*(#|$)' "$SOURCE"; then
+    if grep -qEv '^(#|[[:space:]]*$)' "$SOURCE"; then
         echo "FAIL: active deb822 fields remain ($name)" >&2
         exit 1
     fi
     # Independent expected-content oracle: retain every original line in order,
-    # leaving existing comments untouched and prefixing all other lines once.
-    awk '/^[[:space:]]*#/ { print; next } { print "#" $0 }' \
+    # leaving column-zero comments untouched and prefixing all other lines once.
+    awk '/^#/ { print; next } { print "#" $0 }' \
         "$TMP_DIR/original" > "$TMP_DIR/expected"
     cmp -- "$TMP_DIR/expected" "$SOURCE" || {
         echo "FAIL: source contents or existing comments lost ($name)" >&2
@@ -130,6 +136,8 @@ base_source | run_case 'Enabled absent'
     printf '  Enabled: yes\n  # Indented comment\n'
 } | run_case 'multiple stanzas, extra fields, indentation and continuation'
 printf '# Already commented\n\n  # Indented comment\n' | run_case 'comments only'
+printf '  # Space-indented comment\n\t# Tab-indented comment\n' | run_case 'standalone indented hash lines'
+{ base_source; printf '  # Space continuation\n\t# Tab continuation\n'; } | run_case 'indented hash continuations after fields'
 printf '' | run_case 'empty file'
 
 rm -f -- "$SOURCE"
@@ -165,8 +173,26 @@ if [[ "$dispatch_status" != "2" ]]; then
 fi
 [[ ! -s "$TMP_DIR/success-log" ]]
 echo 'PASS: source menu propagates enterprise edit failure'
+
+: > "$TMP_DIR/optimization-calls"
+setup_status=0
+quick_setup > "$TMP_DIR/setup-output" || setup_status=$?
+[[ "$setup_status" == "1" && ! -s "$TMP_DIR/optimization-calls" && ! -s "$TMP_DIR/success-log" ]]
+echo 'PASS: quick setup stops on source edit failure'
+
+dispatch_status=0
+menu_optimization_dispatch 2 > "$TMP_DIR/setup-output" || dispatch_status=$?
+[[ "$dispatch_status" == "2" && ! -s "$TMP_DIR/optimization-calls" && ! -s "$TMP_DIR/success-log" ]]
+echo 'PASS: optimization menu preserves source edit failure'
 MOCK_ENTERPRISE_EDIT_FAILURE=0
 
 menu_sources_updates_dispatch 1
 assert_apt_sources
 echo 'PASS: source menu preserves successful source update'
+
+menu_optimization_dispatch 2 > "$TMP_DIR/setup-output"
+printf 'popup\nupdate\n' > "$TMP_DIR/expected-optimization-calls"
+cmp -- "$TMP_DIR/expected-optimization-calls" "$TMP_DIR/optimization-calls"
+grep -q '一键配置全部完成' "$TMP_DIR/success-log"
+assert_apt_sources
+echo 'PASS: optimization menu preserves successful quick setup'

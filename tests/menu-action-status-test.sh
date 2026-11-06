@@ -26,9 +26,15 @@ log_error() { printf 'ERROR: %s\n' "$*"; }
 log_warn() { printf 'WARN: %s\n' "$*"; }
 change_sources() {
     printf 'called\n' >> "$TMP_DIR/calls"
+    if [[ "$MOCK_ACTION_FAILS" == "cancel" || "$MOCK_ACTION_FAILS" == "cancel_once" ]]; then
+        [[ "$MOCK_ACTION_FAILS" == "cancel_once" ]] && MOCK_ACTION_FAILS=0
+        return 2
+    fi
     if [[ "$MOCK_ACTION_FAILS" != "0" ]]; then
         if [[ "$MOCK_ACTION_FAILS" == "once" ]]; then
             MOCK_ACTION_FAILS=0
+        elif [[ "$MOCK_ACTION_FAILS" == "then_cancel" ]]; then
+            MOCK_ACTION_FAILS=cancel
         fi
         log_error '关闭企业源失败，部分软件源可能已改写'
         return 1
@@ -75,3 +81,10 @@ run_menu_case 'later success does not erase an earlier action failure' $'1\n1\n0
 MOCK_ACTION_FAILS=0
 run_menu_case 'successful action returns success' $'1\n0\n' 0 1 0 0
 run_menu_case 'return without action remains successful' $'0\n' 0 0 0 0
+MOCK_ACTION_FAILS=cancel
+run_menu_case 'cancelled action is not a failure' $'1\n0\n' 0 1 0 0
+run_menu_case 'cancelled action followed by EOF is not a failure' $'1\n' 0 1 0 0
+MOCK_ACTION_FAILS=cancel_once
+run_menu_case 'successful action after cancellation remains successful' $'1\n1\n0\n' 0 2 0 0
+MOCK_ACTION_FAILS=then_cancel
+run_menu_case 'cancellation does not erase an earlier action failure' $'1\n1\n0\n' 2 2 0 1
