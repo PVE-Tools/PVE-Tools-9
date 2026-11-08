@@ -418,6 +418,7 @@ select_mirror_per_source() {
     read -p "确认使用以上配置？输入 yes 确认，其他任意键返回: " confirm
     [[ "$confirm" == "yes" || "$confirm" == "YES" ]] || { mirror_reset_selection; return 1; }
 }
+# 返回：0=选择完成；2=用户跳过或输入结束，不允许调用方继续写源。
 select_mirror() {
     while true; do
         clear
@@ -431,11 +432,11 @@ select_mirror() {
         show_menu_footer
 
         local choice
-        read -p "请选择操作 [1-3]: " choice
+        read -r -p "请选择操作 [1-3]: " choice || choice=3
         case "$choice" in
             1) select_mirror_unified && return 0 ;;
             2) select_mirror_per_source && return 0 ;;
-            3) mirror_reset_selection; log_info "已跳过镜像源配置"; return 1 ;;
+            3) mirror_reset_selection; log_info "已跳过镜像源配置"; return 2 ;;
             *) log_error "无效选择，请重新输入"; pause_function ;;
         esac
     done

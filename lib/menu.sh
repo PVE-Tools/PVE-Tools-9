@@ -10,7 +10,9 @@
 #     读取（含 EOF / Ctrl+C 守卫）-> 分发 -> pause 节奏控制。
 #   - 渲染函数：只打印功能选项（show_menu_option），不打印返回项/页脚/读取提示。
 #   - 分发函数：case "$1" 处理选项；无法识别的输入 return 1（由框架统一报错），
-#     其余分支执行完后 return 0（动作本身的成败由动作内部反馈，不影响菜单流转）。
+#     其余分支默认 return 0；需要向框架报告操作失败时显式 return 2。
+#     2 不视为输入错误；菜单继续可用，退出时保留本轮菜单发生过操作失败的状态。
+#     用户取消操作时 return 3；不报错，也不清除之前的操作失败状态。
 #   - 选 0 返回、或从子菜单退回父菜单时，不再触发"按任意键继续"。
 
 # 当前菜单嵌套深度：主循环为 0，模块顶级菜单为 1，再往下递增
@@ -37,12 +39,14 @@ menu_prompt() {
 
 # 统一菜单循环：run_menu <标题> <渲染函数> <分发函数> <范围串>
 # 返回项文案按嵌套深度自动生成：模块顶级菜单为"返回主菜单"，更深层为"返回上级菜单"
+# 返回：0=正常返回；2=本轮菜单至少一次操作失败（不因随后选0或EOF而抹掉）。
 run_menu() {
     local title="$1"
     local render_fn="$2"
     local dispatch_fn="$3"
     local range="$4"
     local choice back_label
+    local dispatch_status action_status=0
 
     MENU_DEPTH=$((MENU_DEPTH + 1))
     if [[ "$MENU_DEPTH" -le 1 ]]; then
@@ -65,10 +69,19 @@ run_menu() {
         fi
 
         MENU_SKIP_PAUSE=0
-        if ! "$dispatch_fn" "$choice"; then
-            log_error "无效选择: ${choice:-<空>}"
-            log_warn "请输入 [${range}] 范围内的编号"
-        fi
+        dispatch_status=0
+        "$dispatch_fn" "$choice" || dispatch_status=$?
+        case "$dispatch_status" in
+            0|3) ;;
+            2)
+                action_status=2
+                log_error "操作执行失败，请查看上方错误信息。"
+                ;;
+            *)
+                log_error "无效选择: ${choice:-<空>}"
+                log_warn "请输入 [${range}] 范围内的编号"
+                ;;
+        esac
         if [[ "$MENU_SKIP_PAUSE" -eq 0 ]]; then
             echo
             pause_function
@@ -77,7 +90,7 @@ run_menu() {
 
     MENU_DEPTH=$((MENU_DEPTH - 1))
     MENU_SKIP_PAUSE=1
-    return 0
+    return "$action_status"
 }
 
 # 统一单值输入：prompt_value <变量名> <提示语> [默认值] [校验函数]
