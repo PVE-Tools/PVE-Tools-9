@@ -118,6 +118,132 @@ cpupower_del() {
 
 #--------------CPU、主板、硬盘温度显示----------------
 # 安装工具
+
+# NUT 采集目标为 <设备名>@<服务器地址>，服务器地址支持主机名、IPv4、[IPv6]，
+# 以及可选的 :端口（NUT 客户端要求 IPv6 必须加方括号）。字符集与长度刻意收紧，
+# 避免地址被注入到生成的 Perl 采集片段，或被 NUT 的 256 字节解析缓冲截断。
+
+# 点分十进制 IPv4 校验（每段 0-255），供回环判定与内嵌 IPv4 的 IPv6 复用
+nut_ups_is_ipv4() {
+    local octet='(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])'
+
+    [[ "${1:-}" =~ ^$octet\.$octet\.$octet\.$octet$ ]]
+}
+
+# 方括号内的内容是否为真正的 IPv6：允许一次 :: 压缩与末尾内嵌 IPv4，
+# 拒绝 [:]、组数越界、组超长等写法，避免它们通过校验后进入 NUT 采集流程
+nut_ups_is_ipv6() {
+    local addr="${1:-}"
+    local v4_tail=""
+    local side=""
+    local rest=""
+    local group=""
+    local groups=0
+    local -a sides=()
+
+    [[ "$addr" == *:* ]] || return 1
+    if [[ "$addr" == *:::* ]] || [[ "$addr" == *::*::* ]]; then
+        return 1
+    fi
+
+    # 末尾内嵌 IPv4 占两组，替换成两个占位组后统一按十六进制组校验
+    if [[ "$addr" == *.* ]]; then
+        v4_tail="${addr##*:}"
+        nut_ups_is_ipv4 "$v4_tail" || return 1
+        addr="${addr%"$v4_tail"}0:0"
+    fi
+
+    if [[ "$addr" == *::* ]]; then
+        sides=("${addr%%::*}" "${addr#*::}")
+    else
+        sides=("$addr")
+    fi
+
+    for side in "${sides[@]}"; do
+        [[ -n "$side" ]] || continue
+        rest="$side"
+        while true; do
+            group="${rest%%:*}"
+            [[ "$group" =~ ^[0-9A-Fa-f]{1,4}$ ]] || return 1
+            groups=$((groups + 1))
+            [[ "$rest" == *:* ]] || break
+            rest="${rest#*:}"
+        done
+    done
+
+    # :: 至少代表一个零组：压缩形式最多 7 组，完整形式必须恰好 8 组
+    if [[ "$addr" == *::* ]]; then
+        [[ "$groups" -le 7 ]] || return 1
+    else
+        [[ "$groups" -eq 8 ]] || return 1
+    fi
+    return 0
+}
+
+nut_ups_is_valid_host() {
+    local host="${1:-}"
+    local hostpart=""
+    local port=""
+
+    [[ ${#host} -le 255 ]] || return 1
+
+    if [[ "$host" =~ ^\[([0-9A-Fa-f:.]+)\](:([0-9]{1,5}))?$ ]]; then
+        hostpart="${BASH_REMATCH[1]}"
+        port="${BASH_REMATCH[3]:-}"
+        # 方括号只保证语法边界，内容仍需是真正的 IPv6（如 [:] 必须被拒绝）
+        nut_ups_is_ipv6 "$hostpart" || return 1
+    elif [[ "$host" =~ ^([A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?)(:([0-9]{1,5}))?$ ]]; then
+        hostpart="${BASH_REMATCH[1]}"
+        port="${BASH_REMATCH[4]:-}"
+    else
+        return 1
+    fi
+
+    [[ -n "$hostpart" ]] || return 1
+    if [[ -n "$port" ]] && ((10#$port < 1 || 10#$port > 65535)); then
+        return 1
+    fi
+    return 0
+}
+
+# 规范化 UPS 服务器地址：去除首尾空白；无效时回退 localhost 并返回 1
+nut_ups_resolve_host() {
+    local host="${1:-}"
+
+    host="${host#"${host%%[![:space:]]*}"}"
+    host="${host%"${host##*[![:space:]]}"}"
+
+    if nut_ups_is_valid_host "$host"; then
+        printf '%s\n' "$host"
+        return 0
+    fi
+    printf 'localhost\n'
+    return 1
+}
+
+# 是否为回环地址（含端口形式），用于决定是否提示远程 NUT 配置。
+# 127.0.0.0/8 整段都是回环，不只是 127.0.0.1（Debian 默认把主机名解析到 127.0.1.1）。
+nut_ups_is_loopback_host() {
+    local addr="${1:-}"
+
+    # 只剥掉已校验的 :端口 后缀，避免破坏 [::1] 这类方括号写法
+    if [[ "$addr" =~ ^(.*):[0-9]{1,5}$ ]]; then
+        addr="${BASH_REMATCH[1]}"
+    fi
+
+    case "$addr" in
+        localhost|"[::1]") return 0 ;;
+    esac
+    if [[ "$addr" == 127.* ]] && nut_ups_is_ipv4 "$addr"; then
+        return 0
+    fi
+    return 1
+}
+
+nut_ups_build_target() {
+    printf '%s@%s\n' "$1" "$2"
+}
+
 cpu_add() {
     block_non_pve9_destructive "配置温度监控" || return 1
     if ! confirm_high_risk_action \
@@ -218,6 +344,7 @@ cpu_add() {
 
     local enable_ups=false
     local nut_ups_name=""
+    local nut_ups_host=""
     local nut_ups_target=""
 
     log_info "是否启用 UPS 监控？"
@@ -232,8 +359,16 @@ cpu_add() {
             log_warn "UPS 设备名包含不支持字符，已回退为默认值 ups"
             nut_ups_name="ups"
         fi
-        nut_ups_target="${nut_ups_name}@localhost"
+        read -r -p "请输入 NUT UPS 服务器地址 [默认: localhost]（网络 UPS 填 nut-server 的 IP 或主机名）: " nut_ups_host
+        nut_ups_host=${nut_ups_host:-localhost}
+        if ! nut_ups_host="$(nut_ups_resolve_host "$nut_ups_host")"; then
+            log_warn "UPS 服务器地址格式无效，已回退为默认值 localhost（IPv6 请写成 [地址]）"
+        fi
+        nut_ups_target="$(nut_ups_build_target "$nut_ups_name" "$nut_ups_host")"
         log_success "已选择启用 UPS 监控 (NUT: ${nut_ups_target})"
+        if ! nut_ups_is_loopback_host "$nut_ups_host"; then
+            log_tips "远程 UPS：请确认 nut-server 已允许本机访问，并在 upsd.conf 的 LISTEN/ACL 中放行对应地址"
+        fi
 
         if ! dpkg -s nut-client &> /dev/null; then
             log_info "nut-client 未安装，开始安装以提供 upsc 命令"

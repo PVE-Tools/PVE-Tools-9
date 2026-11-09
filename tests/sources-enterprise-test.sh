@@ -161,7 +161,8 @@ fi
 cmp -- "$TMP_DIR/original" "$SOURCE"
 cmp -- "$TMP_DIR/original" "$TMP_DIR/backups/pve-enterprise.sources"
 [[ ! -s "$TMP_DIR/success-log" ]]
-grep -q '部分软件源可能已改写' "$TMP_DIR/error-log"
+grep -qF "换源失败: 注释 $SOURCE 失败" "$TMP_DIR/error-log"
+grep -qF '不会自动回滚' "$TMP_DIR/error-log"
 echo 'PASS: edit failure returns nonzero without success log or source loss'
 
 : > "$TMP_DIR/success-log"

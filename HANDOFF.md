@@ -23,3 +23,27 @@ bash -n dist/PVE-Tools.sh
 测试把 APT 源、CT 模板路径和备份重定向到临时目录；APT 使用 `--print-uris update`，不下载索引。不要直接执行 `change_sources`、`quick_setup` 或启动真实运维入口来测试。
 
 macOS 的 BSD `sed -i` 不兼容源码；企业源测试应在隔离 Linux 环境运行。此修复不新增依赖、后台任务或网络请求，企业源仍只执行一次线性扫描。
+
+
+## Issue #114：UPS 服务器地址可配置
+
+- `cpu_add` 的 NUT 采集目标由 `<设备名>@localhost` 改为 `<设备名>@<服务器地址>`；交互新增地址输入，默认 `localhost`，空回车走默认值，非法输入回退 `localhost` 并给出提示。
+- 地址支持主机名、IPv4、`[IPv6]` 与可选 `:端口`。依据 NUT 源码 `upscli_splitaddr`：方括号用于区分 IPv6 与端口（如 `[1234:5678]:3493`），内部解析缓冲为 256 字节，因此校验同时限制字符集与长度（≤255）。
+- 该校验同时承担防注入职责：目标地址会拼进生成的 Perl 采集片段（`UPS_TARGET="..."`），只放行 `A-Za-z0-9._:-` 与方括号。
+- 远程地址仅在非回环时提示检查 `upsd.conf` 的 `LISTEN`/`ACL`；脚本仍不启停 NUT、不改 `ups.conf`。
+- 回归：`bash tests/ups-config-test.sh`（52 项纯逻辑，含源码级断言「不再硬编码 localhost」）。
+
+验证命令：
+
+```bash
+bash tests/ups-config-test.sh
+bash build.sh && bash -n dist/PVE-Tools.sh
+```
+
+
+## 审查修复：UPS 地址校验与免订阅源备份
+
+- `nut_ups_is_ipv6` 校验方括号内的内容：允许一次 `::` 压缩与末尾内嵌 IPv4，拒绝 `[:]`、组数越界、组超长等写法；非法值走原有的回退 `localhost` 路径，不进入 UPS 采集。
+- `nut_ups_is_loopback_host` 按 `127.0.0.0/8` 判定回环（含 `:端口`）：Debian 默认把主机名解析到 `127.0.1.1`，此前会被误判为远程地址并提示检查 `upsd.conf` 的 `LISTEN`/`ACL`。`localhost`、`127.0.0.1`、`[::1]` 行为不变。
+- `change_sources` 覆盖 `/etc/apt/sources.list.d/pve-no-subscription.sources` 前先 `backup_file`，备份失败即 `sources_write_error` 并返回 `1`，不再无提示覆盖用户自建配置。
+- 回归：`bash tests/ups-config-test.sh`（64 项）、`bash tests/sources-write-failure-test.sh`（12 项，新增免订阅源备份失败注入）。
