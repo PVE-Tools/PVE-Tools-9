@@ -39,3 +39,11 @@ macOS 的 BSD `sed -i` 不兼容源码；企业源测试应在隔离 Linux 环�
 bash tests/ups-config-test.sh
 bash build.sh && bash -n dist/PVE-Tools.sh
 ```
+
+
+## 审查修复：UPS 地址校验与免订阅源备份
+
+- `nut_ups_is_ipv6` 校验方括号内的内容：允许一次 `::` 压缩与末尾内嵌 IPv4，拒绝 `[:]`、组数越界、组超长等写法；非法值走原有的回退 `localhost` 路径，不进入 UPS 采集。
+- `nut_ups_is_loopback_host` 按 `127.0.0.0/8` 判定回环（含 `:端口`）：Debian 默认把主机名解析到 `127.0.1.1`，此前会被误判为远程地址并提示检查 `upsd.conf` 的 `LISTEN`/`ACL`。`localhost`、`127.0.0.1`、`[::1]` 行为不变。
+- `change_sources` 覆盖 `/etc/apt/sources.list.d/pve-no-subscription.sources` 前先 `backup_file`，备份失败即 `sources_write_error` 并返回 `1`，不再无提示覆盖用户自建配置。
+- 回归：`bash tests/ups-config-test.sh`（64 项）、`bash tests/sources-write-failure-test.sh`（12 项，新增免订阅源备份失败注入）。

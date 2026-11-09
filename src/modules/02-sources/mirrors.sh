@@ -121,6 +121,12 @@ EOF
 
     # 4. 添加无订阅源
     log_info "正在添加免费版专用源..."
+    # 覆盖前先备份同名文件，避免用户自建的免订阅源配置被无提示覆盖。
+    if [[ -f "/etc/apt/sources.list.d/pve-no-subscription.sources" ]] \
+        && ! backup_file "/etc/apt/sources.list.d/pve-no-subscription.sources"; then
+        sources_write_error "备份 /etc/apt/sources.list.d/pve-no-subscription.sources 失败"
+        return 1
+    fi
     if ! cat > /etc/apt/sources.list.d/pve-no-subscription.sources << EOF
 Types: deb
 URIs: $pve_mirror

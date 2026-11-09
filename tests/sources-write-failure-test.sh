@@ -97,11 +97,13 @@ MIRROR_CEPH_URIS=("http://download.proxmox.com/debian/ceph-squid")
 # final rewrite is a separate, independently injectable step.
 MIRROR_CT_URIS=("http://download.proxmox.com" "https://mirrors.tuna.tsinghua.edu.cn/proxmox")
 
+# 打印失败原因并以非零状态退出
 fail() {
     printf 'FAIL: %s\n' "$*" >&2
     exit 1
 }
 
+# 清除上一轮注入
 mock_reset() {
     MOCK_BACKUP_FAIL_PATH=""
     MOCK_SWAP_TO_DIR=""
@@ -134,9 +136,10 @@ EOF
 }
 
 # Rebuild the sandbox and arm exactly one injection:
-#   backup <path>   the backup of <path> fails
-#   swap   <path>   the backup succeeds, then <path> becomes a directory
-#   predir <path>   <path> is already a directory before the run
+#   backup <path>       the backup of <path> fails (file exists in the sandbox)
+#   backup_new <path>   the file is pre-created, then its backup fails
+#   swap   <path>       the backup succeeds, then <path> becomes a directory
+#   predir <path>       <path> is already a directory before the run
 #   seded  <path> <pattern>  the in-place edit matching <pattern> fails
 prepare() {
     local mode="$1" target="$2" sed_match="${3:-}"
@@ -144,6 +147,12 @@ prepare() {
     reset_sandbox
     case "$mode" in
         backup) MOCK_BACKUP_FAIL_PATH="$target" ;;
+        # 覆盖已有文件前必须先备份：备份失败则不得改写该文件
+        backup_new)
+            printf '%s\n' '# 用户已有的免订阅源' > "$target"
+            cp -- "$target" "$TMP_DIR/original/$(basename -- "$target")"
+            MOCK_BACKUP_FAIL_PATH="$target"
+            ;;
         swap) MOCK_SWAP_TO_DIR="$target" ;;
         predir) rm -f -- "$target" && mkdir -- "$target" ;;
         seded) MOCK_SED_ARG_MATCH="$sed_match" ;;
@@ -222,6 +231,8 @@ run_failure_case 'enterprise source comment failure' seded "$ENTERPRISE" \
 run_failure_case 'ceph source backup failure' backup "$CEPH" "备份 $CEPH 失败" "$CEPH"
 run_failure_case 'ceph source write failure' swap "$CEPH" "写入 $CEPH 失败"
 run_failure_case 'no-subscription source write failure' predir "$NO_SUBSCRIPTION" "写入 $NO_SUBSCRIPTION 失败"
+run_failure_case 'no-subscription source backup failure' backup_new "$NO_SUBSCRIPTION" \
+    "备份 $NO_SUBSCRIPTION 失败" "$NO_SUBSCRIPTION"
 run_failure_case 'CT template backup failure' backup "$APL_INFO" "备份 $APL_INFO 失败" "$APL_INFO"
 run_failure_case 'CT template rewrite failure' swap "$APL_INFO" "重写 $APL_INFO 的 CT 模板地址失败"
 run_failure_case 'CT template write failure' seded "$APL_INFO" \

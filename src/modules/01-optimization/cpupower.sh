@@ -122,6 +122,64 @@ cpupower_del() {
 # NUT 采集目标为 <设备名>@<服务器地址>，服务器地址支持主机名、IPv4、[IPv6]，
 # 以及可选的 :端口（NUT 客户端要求 IPv6 必须加方括号）。字符集与长度刻意收紧，
 # 避免地址被注入到生成的 Perl 采集片段，或被 NUT 的 256 字节解析缓冲截断。
+
+# 点分十进制 IPv4 校验（每段 0-255），供回环判定与内嵌 IPv4 的 IPv6 复用
+nut_ups_is_ipv4() {
+    local octet='(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])'
+
+    [[ "${1:-}" =~ ^$octet\.$octet\.$octet\.$octet$ ]]
+}
+
+# 方括号内的内容是否为真正的 IPv6：允许一次 :: 压缩与末尾内嵌 IPv4，
+# 拒绝 [:]、组数越界、组超长等写法，避免它们通过校验后进入 NUT 采集流程
+nut_ups_is_ipv6() {
+    local addr="${1:-}"
+    local v4_tail=""
+    local side=""
+    local rest=""
+    local group=""
+    local groups=0
+    local -a sides=()
+
+    [[ "$addr" == *:* ]] || return 1
+    if [[ "$addr" == *:::* ]] || [[ "$addr" == *::*::* ]]; then
+        return 1
+    fi
+
+    # 末尾内嵌 IPv4 占两组，替换成两个占位组后统一按十六进制组校验
+    if [[ "$addr" == *.* ]]; then
+        v4_tail="${addr##*:}"
+        nut_ups_is_ipv4 "$v4_tail" || return 1
+        addr="${addr%"$v4_tail"}0:0"
+    fi
+
+    if [[ "$addr" == *::* ]]; then
+        sides=("${addr%%::*}" "${addr#*::}")
+    else
+        sides=("$addr")
+    fi
+
+    for side in "${sides[@]}"; do
+        [[ -n "$side" ]] || continue
+        rest="$side"
+        while true; do
+            group="${rest%%:*}"
+            [[ "$group" =~ ^[0-9A-Fa-f]{1,4}$ ]] || return 1
+            groups=$((groups + 1))
+            [[ "$rest" == *:* ]] || break
+            rest="${rest#*:}"
+        done
+    done
+
+    # :: 至少代表一个零组：压缩形式最多 7 组，完整形式必须恰好 8 组
+    if [[ "$addr" == *::* ]]; then
+        [[ "$groups" -le 7 ]] || return 1
+    else
+        [[ "$groups" -eq 8 ]] || return 1
+    fi
+    return 0
+}
+
 nut_ups_is_valid_host() {
     local host="${1:-}"
     local hostpart=""
@@ -132,6 +190,8 @@ nut_ups_is_valid_host() {
     if [[ "$host" =~ ^\[([0-9A-Fa-f:.]+)\](:([0-9]{1,5}))?$ ]]; then
         hostpart="${BASH_REMATCH[1]}"
         port="${BASH_REMATCH[3]:-}"
+        # 方括号只保证语法边界，内容仍需是真正的 IPv6（如 [:] 必须被拒绝）
+        nut_ups_is_ipv6 "$hostpart" || return 1
     elif [[ "$host" =~ ^([A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?)(:([0-9]{1,5}))?$ ]]; then
         hostpart="${BASH_REMATCH[1]}"
         port="${BASH_REMATCH[4]:-}"
@@ -161,11 +221,22 @@ nut_ups_resolve_host() {
     return 1
 }
 
-# 是否为回环地址（含端口形式），用于决定是否提示远程 NUT 配置
+# 是否为回环地址（含端口形式），用于决定是否提示远程 NUT 配置。
+# 127.0.0.0/8 整段都是回环，不只是 127.0.0.1（Debian 默认把主机名解析到 127.0.1.1）。
 nut_ups_is_loopback_host() {
-    case "${1:-}" in
-        localhost|localhost:*|127.0.0.1|127.0.0.1:*|"[::1]"|"[::1]":*) return 0 ;;
+    local addr="${1:-}"
+
+    # 只剥掉已校验的 :端口 后缀，避免破坏 [::1] 这类方括号写法
+    if [[ "$addr" =~ ^(.*):[0-9]{1,5}$ ]]; then
+        addr="${BASH_REMATCH[1]}"
+    fi
+
+    case "$addr" in
+        localhost|"[::1]") return 0 ;;
     esac
+    if [[ "$addr" == 127.* ]] && nut_ups_is_ipv4 "$addr"; then
+        return 0
+    fi
     return 1
 }
 

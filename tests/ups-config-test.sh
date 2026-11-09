@@ -26,11 +26,13 @@ source "$REPO_ROOT/src/modules/01-optimization/cpupower.sh"
 PASS_COUNT=0
 FAIL_COUNT=0
 
+# 记一条通过用例
 pass() {
     PASS_COUNT=$((PASS_COUNT + 1))
     echo "  PASS  $1"
 }
 
+# 记一条失败用例，并打印期望值与实际值
 fail() {
     FAIL_COUNT=$((FAIL_COUNT + 1))
     echo "  FAIL  $1"
@@ -38,6 +40,7 @@ fail() {
     echo "        实际: $3"
 }
 
+# 断言给定命令返回 0
 assert_true() {
     local name="$1"
     shift
@@ -48,6 +51,7 @@ assert_true() {
     fi
 }
 
+# 断言给定命令返回非 0
 assert_false() {
     local name="$1"
     shift
@@ -58,6 +62,7 @@ assert_false() {
     fi
 }
 
+# 断言两个字符串相等
 assert_eq() {
     if [[ "$2" == "$3" ]]; then
         pass "$1"
@@ -73,8 +78,11 @@ for host in \
     "ups.example.lan" \
     "ups-1.example.com" \
     "[::1]" \
+    "[::]" \
     "[fe80::1]" \
     "[2001:db8::10]" \
+    "[2001:db8:0:0:0:0:0:1]" \
+    "[::ffff:192.168.1.1]" \
     "192.168.1.10:3493" \
     "localhost:3493" \
     "[::1]:3493" \
@@ -99,6 +107,10 @@ for host in \
     "host-" \
     "[::1" \
     "::1" \
+    "[:]" \
+    "[12345::1]" \
+    "[1::2::3]" \
+    "[1:2:3:4:5:6:7:8:9]" \
     "host:12:34" \
     "[zzzz::1]"; do
     assert_false "拒绝地址: ${host:-<空>}" nut_ups_is_valid_host "$host"
@@ -136,10 +148,26 @@ assert_eq "非法输入回退 localhost" "localhost" "$resolved"
 assert_eq "非法输入返回状态 1" "1" "$status"
 
 echo "== 回环地址判定 =="
-for host in "localhost" "localhost:3493" "127.0.0.1" "127.0.0.1:3493" "[::1]" "[::1]:3493"; do
+for host in \
+    "localhost" \
+    "localhost:3493" \
+    "127.0.0.1" \
+    "127.0.0.1:3493" \
+    "127.0.1.1" \
+    "127.0.1.1:3493" \
+    "127.255.255.254" \
+    "[::1]" \
+    "[::1]:3493"; do
     assert_true "识别为回环: $host" nut_ups_is_loopback_host "$host"
 done
-for host in "192.168.1.10" "192.168.1.10:3493" "ups.example.lan" "[fe80::1]" "localhost.evil"; do
+for host in \
+    "192.168.1.10" \
+    "192.168.1.10:3493" \
+    "128.0.0.1" \
+    "127.0.0.1.evil" \
+    "ups.example.lan" \
+    "[fe80::1]" \
+    "localhost.evil"; do
     assert_false "不识别为回环: $host" nut_ups_is_loopback_host "$host"
 done
 
