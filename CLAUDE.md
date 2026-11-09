@@ -234,6 +234,7 @@ foo_menu_dispatch() {      # case 处理选项；未识别 return 1；末尾必�
 
 | 日期 | 变更 | 来源 |
 |---|---|---|
+| 2026-11-09 | v12.1.0 (Si)：NUT UPS 采集地址可配置（#114），方括号内容按真 IPv6 校验、回环判定覆盖 127.0.0.0/8；换源备份/写入/CT 模板替换失败一律中止并上报，覆盖 pve-no-subscription.sources 前先备份；换源失败与取消分别映射为「操作失败」「操作取消」；企业源按 deb822 规范注释；新增 tests/sources-write-failure-test.sh（12 项） | GitHub Issue / 审查修复 |
 | 2026-11-02 | v12.0.1 (Si)：官网与文档迁移至 pve.ciriu.com，启动器/主程序/本地更新拒绝仍引用旧域名的脚本；本地更新首选源校验失败（含旧域名）时回退备用源，两源均不可用才中止；Build 代号更新为 Si | 域名迁移与审查修复 |
 | 2026-10-08 | v12.0.0 (Vesna)：旧内核清理保护当前运行内核 / 最新两个 release / pin 内核（#107）；Intel 核显 SR-IOV 新增 CCS0 兼容选项、DKMS 版本与内核范围核对、systemd-boot 提示与参数归属清理（#106）；GRUB 参数写入失败不再谎报成功；新增 tests/ 本地回归测试（87 项） | GitHub Issue |
 | 2026-09-10 | 发版链路迁移腾讯 CNB 双源架构：入口/自更新 CNB 优先 + GitHub 兜底，移除 ghfast 依赖；新增 .cnb.yml 发布流水线（ci/cnb-publish.sh） | CNB 迁移计划 |
