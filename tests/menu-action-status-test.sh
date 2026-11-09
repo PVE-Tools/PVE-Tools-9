@@ -36,7 +36,7 @@ change_sources() {
         elif [[ "$MOCK_ACTION_FAILS" == "then_cancel" ]]; then
             MOCK_ACTION_FAILS=cancel
         fi
-        log_error '关闭企业源失败，部分软件源可能已改写'
+        log_error '换源失败: 注释 /etc/apt/sources.list.d/pve-enterprise.sources 失败'
         return 1
     fi
     return 0

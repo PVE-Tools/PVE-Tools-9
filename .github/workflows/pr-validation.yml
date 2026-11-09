@@ -32,10 +32,11 @@ jobs:
 
       - name: APT source and menu regression tests
         run: |
-          shellcheck -f gcc tests/sources-enterprise-test.sh tests/menu-action-status-test.sh tests/sources-cancellation-test.sh
+          shellcheck -f gcc tests/sources-enterprise-test.sh tests/menu-action-status-test.sh tests/sources-cancellation-test.sh tests/sources-write-failure-test.sh
           bash tests/sources-enterprise-test.sh
           bash tests/menu-action-status-test.sh
           bash tests/sources-cancellation-test.sh
+          bash tests/sources-write-failure-test.sh
           
       - name: Shellcheck (built script, error level)
         run: |
