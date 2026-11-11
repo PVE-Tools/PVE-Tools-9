@@ -30,6 +30,7 @@
 | 文件 | 类型 | 说明 |
 |---|---|---|
 | `install-zsh.sh` | Bash 脚本 | ZSH 安装脚本 v3.0 (by Maple)，自动安装 oh-my-zsh 并配置 |
+| `better-pve.sh` | Bash 脚本 | better-pve Web 界面美化 (by dbstd2333)：下载 [better-pve-web](https://github.com/dbstd2333/better-pve-web) 固定版本发布包并校验内置 SHA-256 后安装 / 卸载，与本项目温度监控补丁可共存 |
 | `VGPU/libvgpu_unlock_rs_20230207_44d5bb3.so` | 二进制 (.so) | NVIDIA vGPU Unlock 补丁库，用于解锁消费级 GPU 的 vGPU 功能 |
 
 ### install-zsh.sh 概述
@@ -92,6 +93,7 @@ github: string    # GitHub 项目地址
 ```
 Modules/
   install-zsh.sh                  # ZSH 安装插件 v3.0
+  better-pve.sh                   # better-pve Web 界面美化插件
   VGPU/
     libvgpu_unlock_rs_20230207_44d5bb3.so  # NVIDIA vGPU Unlock 库（二进制）
 ```
